@@ -1,4 +1,5 @@
 use super::{ShapeDraft, ShapeKind};
+use crate::i18n::tr;
 use gridvana_core::grid::GridIndex;
 use gridvana_core::model::{GridConfig, Project, Rgba};
 use std::collections::{HashMap, HashSet};
@@ -105,7 +106,7 @@ pub(super) fn tool_size_display(config: GridConfig, size: u8) -> String {
     match config {
         GridConfig::Square { .. } => format!(" · {span}×{span}"),
         GridConfig::Hexagon { .. } | GridConfig::Triangle { .. } => {
-            format!(" · 跨度 {span}")
+            format!(" · {} {span}", tr("span", "跨度"))
         }
     }
 }

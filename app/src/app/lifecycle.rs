@@ -4,6 +4,7 @@ use super::{
     PendingRecovery, SpriteSheetExportForm,
 };
 use crate::cli_terminal::CliConfig;
+use crate::i18n::{AppPreferences, set_current_language, tr};
 use crate::types::{
     ColorSlot, InspectorPanel, Message, SelectionCombineMode, Tool, TransformTargetChoice,
 };
@@ -30,18 +31,31 @@ fn recovery_file_path() -> PathBuf {
 
 impl Gridvana {
     pub fn new() -> (Self, Task<Message>) {
+        let (preferences, language_save_error) = match AppPreferences::load() {
+            Ok(preferences) => (preferences, None),
+            Err(error) => (AppPreferences::default(), Some(error)),
+        };
+        let language = preferences.language;
+        set_current_language(language);
         let project = Project::new_square(20.0, 0, 0);
         let (mcp_service, mcp_status) =
             match crate::mcp::EmbeddedMcpService::start(&project, std::iter::empty()) {
                 Ok(service) => {
-                    let status = format!("MCP 已连接 · {}", service.endpoint());
+                    let status = format!(
+                        "{} · {}",
+                        tr("MCP connected", "MCP 已连接"),
+                        service.endpoint()
+                    );
                     (Some(service), status)
                 }
-                Err(error) => (None, format!("MCP 未启动 · {error}")),
+                Err(error) => (
+                    None,
+                    format!("{} · {error}", tr("MCP did not start", "MCP 未启动")),
+                ),
             };
         let (cli_config, cli_status) = match CliConfig::load() {
             Ok(config) => {
-                let status = format!("当前终端 · {}", config.agent);
+                let status = format!("{} · {}", tr("Current terminal", "当前终端"), config.agent);
                 (config, status)
             }
             Err(error) => (CliConfig::default(), error),
@@ -59,7 +73,8 @@ impl Gridvana {
             ),
             Ok(false) => None,
             Err(error) => Some(PendingRecovery::Damaged(format!(
-                "无法检查恢复文件 {}：{error}",
+                "{} {}: {error}",
+                tr("Could not inspect recovery file", "无法检查恢复文件"),
                 recovery_file_path.display()
             ))),
         };
@@ -76,7 +91,10 @@ impl Gridvana {
                 terminal_page_ready: false,
                 terminal_size: None,
                 cli_settings_open: false,
-                settings_section: crate::types::SettingsSection::Agent,
+                settings_section: crate::types::SettingsSection::General,
+                preferences,
+                language,
+                language_save_error,
                 about_dialog_open: false,
                 cli_config,
                 cli_config_draft,
@@ -115,7 +133,11 @@ impl Gridvana {
                 new_project_dialog_open: false,
                 pending_sprite_sheet_export_path: None,
                 sprite_sheet_export_form: SpriteSheetExportForm::default(),
-                sprite_sheet_export_estimate: Err("尚未选择导出路径".to_string()),
+                sprite_sheet_export_estimate: Err(tr(
+                    "No export path selected",
+                    "尚未选择导出路径",
+                )
+                .to_string()),
                 last_export_summary: None,
                 new_project_width: "64".to_string(),
                 new_project_height: "64".to_string(),

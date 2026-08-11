@@ -5,6 +5,7 @@ use super::super::ui::{
 };
 use super::super::{Gridvana, McpCopyFeedback};
 use crate::cli_terminal::{CliAgent, cli_config_path};
+use crate::i18n::{Language, preferences_path, tr};
 use crate::icons::{Icon, icon_button};
 use crate::types::{Message, SettingsSection};
 use iced::{Background, Color, Element, Length, Theme, widget};
@@ -14,10 +15,19 @@ const CARD_HEIGHT: f32 = 620.0;
 const NAV_WIDTH: f32 = 172.0;
 const LABEL_WIDTH: f32 = 186.0;
 
-const SECTIONS: [(SettingsSection, &str); 2] = [
-    (SettingsSection::Agent, "AI 代理"),
-    (SettingsSection::Mcp, "MCP 服务"),
+const SECTIONS: [SettingsSection; 3] = [
+    SettingsSection::General,
+    SettingsSection::Agent,
+    SettingsSection::Mcp,
 ];
+
+fn section_label(section: SettingsSection) -> &'static str {
+    match section {
+        SettingsSection::General => tr("General", "通用"),
+        SettingsSection::Agent => tr("AI Agent", "AI 代理"),
+        SettingsSection::Mcp => tr("MCP Service", "MCP 服务"),
+    }
+}
 
 impl Gridvana {
     pub(super) fn settings_overlay(&self) -> Option<Element<'_, Message>> {
@@ -85,8 +95,12 @@ impl Gridvana {
         widget::container(
             widget::row![
                 widget::column![
-                    widget::text("设置").size(15).color(TEXT_PRIMARY),
-                    widget::text("Gridvana 偏好设置").size(10).color(TEXT_MUTED),
+                    widget::text(tr("Settings", "设置"))
+                        .size(15)
+                        .color(TEXT_PRIMARY),
+                    widget::text(tr("Gridvana preferences", "Gridvana 偏好设置"))
+                        .size(10)
+                        .color(TEXT_MUTED),
                 ]
                 .spacing(3)
                 .width(Length::Fill),
@@ -103,7 +117,7 @@ impl Gridvana {
     fn settings_nav(&self) -> Element<'_, Message> {
         let items = SECTIONS
             .into_iter()
-            .map(|(section, label)| {
+            .map(|section| {
                 let active = self.settings_section == section;
                 widget::button(
                     widget::row![
@@ -117,11 +131,9 @@ impl Gridvana {
                                     Color::TRANSPARENT
                                 })
                             }),
-                        widget::text(label).size(11).color(if active {
-                            TEXT_PRIMARY
-                        } else {
-                            TEXT_SECONDARY
-                        }),
+                        widget::text(section_label(section))
+                            .size(11)
+                            .color(if active { TEXT_PRIMARY } else { TEXT_SECONDARY }),
                     ]
                     .spacing(9)
                     .align_y(iced::Alignment::Center),
@@ -157,16 +169,54 @@ impl Gridvana {
 
     fn settings_section_body(&self) -> Element<'_, Message> {
         match self.settings_section {
+            SettingsSection::General => self.settings_general_section(),
             SettingsSection::Agent => self.settings_agent_section(),
             SettingsSection::Mcp => self.settings_mcp_section(),
         }
     }
 
+    fn settings_general_section(&self) -> Element<'_, Message> {
+        let language = widget::pick_list(Language::ALL, Some(self.language), Message::SetLanguage)
+            .text_size(11)
+            .padding([6, 8])
+            .width(Length::Fill)
+            .style(pick_list_style)
+            .menu_style(pick_list_menu_style);
+
+        widget::column![
+            group(
+                tr("Language & region", "语言与地区"),
+                vec![setting_row(
+                    tr("Language", "语言"),
+                    Some(tr(
+                        "Choose the language used throughout Gridvana",
+                        "选择 Gridvana 全局使用的界面语言",
+                    )),
+                    language.into(),
+                )],
+            ),
+            widget::text(format!(
+                "{}: {}",
+                tr("Preferences file", "偏好设置文件"),
+                preferences_path().display()
+            ))
+            .size(9)
+            .font(iced::Font::MONOSPACE)
+            .color(TEXT_MUTED)
+            .wrapping(iced::widget::text::Wrapping::WordOrGlyph),
+        ]
+        .spacing(16)
+        .into()
+    }
+
     fn settings_agent_section(&self) -> Element<'_, Message> {
         let draft = &self.cli_config_draft;
         let visibility_rows = vec![setting_row(
-            "启用 AI Agent 面板",
-            Some("即使尚未自定义 Agent 配置，也在检查器中显示该面板"),
+            tr("Enable AI Agent panel", "启用 AI Agent 面板"),
+            Some(tr(
+                "Show the panel in the inspector even before an Agent is customized",
+                "即使尚未自定义 Agent 配置，也在检查器中显示该面板",
+            )),
             widget::row![
                 widget::Space::new().width(Length::Fill),
                 widget::toggler(draft.ai_panel_enabled).on_toggle(Message::SetAiPanelEnabled),
@@ -181,9 +231,9 @@ impl Gridvana {
         .spacing(6);
 
         let test_label = if self.cli_test_in_flight {
-            "检测中"
+            tr("Testing…", "检测中…")
         } else {
-            "检测"
+            tr("Test", "检测")
         };
         let command_value = match draft.agent {
             CliAgent::Codex => &draft.codex.command,
@@ -214,13 +264,19 @@ impl Gridvana {
 
         let mut rows = vec![
             setting_row(
-                "代理",
-                Some("启动画布 AI 会话所使用的 CLI"),
+                tr("Agent", "代理"),
+                Some(tr(
+                    "CLI used to start canvas AI sessions",
+                    "启动画布 AI 会话所使用的 CLI",
+                )),
                 agent_choice.into(),
             ),
             setting_row(
-                "可执行命令",
-                Some("PATH 中的命令名或绝对路径"),
+                tr("Executable command", "可执行命令"),
+                Some(tr(
+                    "Command name in PATH or an absolute path",
+                    "PATH 中的命令名或绝对路径",
+                )),
                 command_control.into(),
             ),
         ];
@@ -229,24 +285,45 @@ impl Gridvana {
             CliAgent::Codex => {
                 rows.push(setting_row(
                     "Profile",
-                    Some("留空则使用 Codex 默认 profile"),
-                    text_field("默认", &draft.codex.profile, Message::UpdateCodexProfile),
+                    Some(tr(
+                        "Leave blank to use the default Codex profile",
+                        "留空则使用 Codex 默认 profile",
+                    )),
+                    text_field(
+                        tr("Default", "默认"),
+                        &draft.codex.profile,
+                        Message::UpdateCodexProfile,
+                    ),
                 ));
                 rows.push(setting_row(
-                    "模型",
-                    Some("留空则使用 Codex 默认模型"),
-                    text_field("默认", &draft.codex.model, Message::UpdateCodexModel),
+                    tr("Model", "模型"),
+                    Some(tr(
+                        "Leave blank to use the default Codex model",
+                        "留空则使用 Codex 默认模型",
+                    )),
+                    text_field(
+                        tr("Default", "默认"),
+                        &draft.codex.model,
+                        Message::UpdateCodexModel,
+                    ),
                 ));
             }
             CliAgent::Claude => {
                 rows.push(setting_row(
-                    "模型",
-                    Some("留空则使用 Claude 默认模型"),
-                    text_field("默认", &draft.claude.model, Message::UpdateClaudeModel),
+                    tr("Model", "模型"),
+                    Some(tr(
+                        "Leave blank to use the default Claude model",
+                        "留空则使用 Claude 默认模型",
+                    )),
+                    text_field(
+                        tr("Default", "默认"),
+                        &draft.claude.model,
+                        Message::UpdateClaudeModel,
+                    ),
                 ));
                 rows.push(setting_row(
                     "Effort",
-                    Some("推理强度"),
+                    Some(tr("Reasoning intensity", "推理强度")),
                     widget::pick_list(
                         ["default", "low", "medium", "high", "max"]
                             .map(str::to_string)
@@ -265,13 +342,17 @@ impl Gridvana {
         }
 
         let permission_hint = match draft.agent {
-            CliAgent::Codex => {
-                "跳过操作许可询问，并继续使用只读沙箱；画布编辑经由 Gridvana MCP 完成。"
-            }
-            CliAgent::Claude => "跳过权限确认；仅在信任当前项目和请求时开启。",
+            CliAgent::Codex => tr(
+                "Skip action approval prompts while keeping the read-only sandbox; canvas edits are made through Gridvana MCP.",
+                "跳过操作许可询问，并继续使用只读沙箱；画布编辑经由 Gridvana MCP 完成。",
+            ),
+            CliAgent::Claude => tr(
+                "Skip permission prompts; enable only when you trust the current project and request.",
+                "跳过权限确认；仅在信任当前项目和请求时开启。",
+            ),
         };
         let permission_rows = vec![setting_row(
-            "默认允许",
+            tr("Allow by default", "默认允许"),
             Some(permission_hint),
             widget::row![
                 widget::Space::new().width(Length::Fill),
@@ -282,21 +363,31 @@ impl Gridvana {
         )];
 
         let launch_hint = match draft.agent {
-            CliAgent::Codex => "Codex 以交互 TUI 启动，MCP 工具授权直接在终端中完成。",
-            CliAgent::Claude => "Claude 以交互模式启动，并通过临时 MCP 配置连接当前画布。",
+            CliAgent::Codex => tr(
+                "Codex starts in its interactive TUI; MCP tool approval happens in the terminal.",
+                "Codex 以交互 TUI 启动，MCP 工具授权直接在终端中完成。",
+            ),
+            CliAgent::Claude => tr(
+                "Claude starts interactively and connects to the current canvas through a temporary MCP configuration.",
+                "Claude 以交互模式启动，并通过临时 MCP 配置连接当前画布。",
+            ),
         };
 
         widget::column![
-            group("界面", visibility_rows),
-            group("代理配置", rows),
-            group("权限", permission_rows),
+            group(tr("Interface", "界面"), visibility_rows),
+            group(tr("Agent configuration", "代理配置"), rows),
+            group(tr("Permissions", "权限"), permission_rows),
             widget::column![
                 widget::text(launch_hint).size(10).color(TEXT_MUTED),
-                widget::text(format!("配置文件：{}", cli_config_path().display()))
-                    .size(9)
-                    .font(iced::Font::MONOSPACE)
-                    .color(TEXT_MUTED)
-                    .wrapping(iced::widget::text::Wrapping::WordOrGlyph),
+                widget::text(format!(
+                    "{}: {}",
+                    tr("Configuration file", "配置文件"),
+                    cli_config_path().display()
+                ))
+                .size(9)
+                .font(iced::Font::MONOSPACE)
+                .color(TEXT_MUTED)
+                .wrapping(iced::widget::text::Wrapping::WordOrGlyph),
             ]
             .spacing(5),
         ]
@@ -305,21 +396,23 @@ impl Gridvana {
     }
 
     fn settings_mcp_section(&self) -> Element<'_, Message> {
-        let connected = self.mcp_status.starts_with("MCP 已连接");
+        let connected = self.mcp_service.is_some();
         let endpoint = self
             .mcp_service
             .as_ref()
             .map(|service| service.endpoint().to_string());
-        let endpoint_value = endpoint.clone().unwrap_or_else(|| "未启动".to_string());
+        let endpoint_value = endpoint
+            .clone()
+            .unwrap_or_else(|| tr("Not running", "未启动").to_string());
         let endpoint_copy_label = if self.mcp_copy_feedback == Some(McpCopyFeedback::Endpoint) {
-            "已复制"
+            tr("Copied", "已复制")
         } else {
-            "复制链接"
+            tr("Copy link", "复制链接")
         };
         let prompt_copy_label = if self.mcp_copy_feedback == Some(McpCopyFeedback::AgentPrompt) {
-            "已复制"
+            tr("Copied", "已复制")
         } else {
-            "复制提示词"
+            tr("Copy prompt", "复制提示词")
         };
         let endpoint_control = widget::row![
             widget::container(mono_value(endpoint_value)).width(Length::Fill),
@@ -341,12 +434,12 @@ impl Gridvana {
         let session = self
             .terminal_session
             .as_ref()
-            .map(|session| format!("{} 会话运行中", session.agent))
-            .unwrap_or_else(|| "无运行中的会话".to_string());
+            .map(|session| format!("{} {}", session.agent, tr("session running", "会话运行中")))
+            .unwrap_or_else(|| tr("No running session", "无运行中的会话").to_string());
 
         let rows = vec![
             setting_row(
-                "服务状态",
+                tr("Service status", "服务状态"),
                 None,
                 widget::row![
                     status_dot(connected),
@@ -359,19 +452,29 @@ impl Gridvana {
                 .align_y(iced::Alignment::Center)
                 .into(),
             ),
-            setting_row("端点", None, endpoint_control.into()),
+            setting_row(tr("Endpoint", "端点"), None, endpoint_control.into()),
             setting_row(
-                "Agent 提示词",
-                Some("粘贴给 Codex 或其它支持 MCP 的代理"),
+                tr("Agent prompt", "Agent 提示词"),
+                Some(tr(
+                    "Paste into Codex or another MCP-capable agent",
+                    "粘贴给 Codex 或其它支持 MCP 的代理",
+                )),
                 prompt_control.into(),
             ),
-            setting_row("终端会话", None, value_text(session)),
+            setting_row(
+                tr("Terminal session", "终端会话"),
+                None,
+                value_text(session),
+            ),
         ];
 
         widget::column![
-            group("嵌入式 MCP", rows),
+            group(tr("Embedded MCP", "嵌入式 MCP"), rows),
             widget::text(
-                "MCP 服务随 Gridvana 启动，仅监听本机回环地址，代理通过该端点读取并编辑当前画布。"
+                tr(
+                    "The MCP service starts with Gridvana and listens only on the local loopback address. Agents use the endpoint to read and edit the current canvas.",
+                    "MCP 服务随 Gridvana 启动，仅监听本机回环地址，代理通过该端点读取并编辑当前画布。",
+                )
             )
             .size(10)
             .color(TEXT_MUTED),
@@ -382,7 +485,15 @@ impl Gridvana {
 
     fn settings_footer(&self) -> Element<'_, Message> {
         let dirty = self.cli_config_draft != self.cli_config;
-        let status: Element<'_, Message> = if self.settings_section == SettingsSection::Agent
+        let status: Element<'_, Message> = if self.settings_section == SettingsSection::General
+            && let Some(error) = self.language_save_error.as_ref()
+        {
+            widget::text(error)
+                .size(10)
+                .color(ACCENT)
+                .wrapping(iced::widget::text::Wrapping::WordOrGlyph)
+                .into()
+        } else if self.settings_section == SettingsSection::Agent
             && let Some(error) = self.cli_save_error.as_ref()
         {
             widget::text(error)
@@ -391,52 +502,75 @@ impl Gridvana {
                 .wrapping(iced::widget::text::Wrapping::WordOrGlyph)
                 .into()
         } else if dirty {
-            widget::text("有未保存的更改").size(10).color(ACCENT).into()
+            widget::text(tr("You have unsaved changes", "有未保存的更改"))
+                .size(10)
+                .color(ACCENT)
+                .into()
+        } else if self.settings_section == SettingsSection::General {
+            widget::text(tr(
+                "Language changes are saved automatically",
+                "语言更改会自动保存",
+            ))
+            .size(10)
+            .color(SUCCESS)
+            .into()
         } else if self.settings_section == SettingsSection::Mcp
             && let Some(feedback) = self.mcp_copy_feedback
         {
             let message = match feedback {
-                McpCopyFeedback::Endpoint => "MCP 服务链接已复制",
-                McpCopyFeedback::AgentPrompt => "Agent 提示词已复制，可直接粘贴使用",
+                McpCopyFeedback::Endpoint => tr("MCP service link copied", "MCP 服务链接已复制"),
+                McpCopyFeedback::AgentPrompt => tr(
+                    "Agent prompt copied and ready to paste",
+                    "Agent 提示词已复制，可直接粘贴使用",
+                ),
             };
             widget::text(message).size(10).color(SUCCESS).into()
         } else if self.settings_section == SettingsSection::Mcp {
-            widget::text("链接仅在本机有效；使用时请保持 Gridvana 开启")
-                .size(10)
-                .color(TEXT_MUTED)
-                .into()
+            widget::text(tr(
+                "The link works only on this device; keep Gridvana open while using it",
+                "链接仅在本机有效；使用时请保持 Gridvana 开启",
+            ))
+            .size(10)
+            .color(TEXT_MUTED)
+            .into()
         } else {
             widget::text(self.cli_status.clone())
                 .size(10)
-                .color(if self.cli_status.starts_with("CLI 配置已保存") {
-                    SUCCESS
-                } else {
-                    TEXT_MUTED
-                })
+                .color(
+                    if self.cli_status.starts_with("CLI configuration saved")
+                        || self.cli_status.starts_with("CLI 配置已保存")
+                    {
+                        SUCCESS
+                    } else {
+                        TEXT_MUTED
+                    },
+                )
                 .wrapping(iced::widget::text::Wrapping::WordOrGlyph)
                 .into()
         };
 
-        widget::container(
-            widget::row![
-                widget::container(status).width(Length::Fill),
-                widget::button(widget::text("关闭").size(11).line_height(1.0))
-                    .padding([7, 12])
-                    .style(|theme: &Theme, status| compact_action_button_style(
-                        theme, status, false
-                    ))
-                    .on_press(Message::CloseCliSettings),
-                widget::button(widget::text("保存").size(11).line_height(1.0))
+        let mut actions = widget::row![
+            widget::container(status).width(Length::Fill),
+            widget::button(widget::text(tr("Close", "关闭")).size(11).line_height(1.0))
+                .padding([7, 12])
+                .style(|theme: &Theme, status| compact_action_button_style(theme, status, false))
+                .on_press(Message::CloseCliSettings),
+        ]
+        .spacing(8)
+        .align_y(iced::Alignment::Center);
+        if self.settings_section == SettingsSection::Agent || dirty {
+            actions = actions.push(
+                widget::button(widget::text(tr("Save", "保存")).size(11).line_height(1.0))
                     .padding([7, 12])
                     .style(|theme: &Theme, status| compact_action_button_style(theme, status, true))
                     .on_press(Message::SaveCliConfig),
-            ]
-            .spacing(8)
-            .align_y(iced::Alignment::Center),
-        )
-        .padding([10, 14])
-        .width(Length::Fill)
-        .into()
+            );
+        }
+
+        widget::container(actions)
+            .padding([10, 14])
+            .width(Length::Fill)
+            .into()
     }
 }
 

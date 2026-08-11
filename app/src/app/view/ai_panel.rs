@@ -1,5 +1,6 @@
 use super::super::Gridvana;
 use super::super::ui::PANEL_BACKGROUND;
+use crate::i18n::tr;
 use crate::types::Message;
 use iced::{Element, Length, widget};
 
@@ -15,7 +16,7 @@ impl Gridvana {
                         widget::text(&self.cli_status)
                             .size(12)
                             .wrapping(iced::widget::text::Wrapping::WordOrGlyph),
-                        widget::button(widget::text("启动终端").size(12))
+                        widget::button(widget::text(tr("Start terminal", "启动终端")).size(12))
                             .padding([8, 12])
                             .style(widget::button::primary)
                             .on_press(Message::StartCliTerminal),

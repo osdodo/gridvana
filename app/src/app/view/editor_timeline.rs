@@ -4,6 +4,7 @@ use super::super::ui::{
     panel_style, text_input_style,
 };
 use super::super::{Gridvana, TimelineDrag};
+use crate::i18n::tr;
 use crate::icons::{Icon, icon_button};
 use crate::types::Message;
 use gridvana_core::model::{CelPosition, LayerKind, TagDirection};
@@ -13,15 +14,19 @@ impl Gridvana {
     pub(super) fn editor_empty_bottom_panel(&self) -> Element<'_, Message> {
         let timeline_controls = widget::row![
             icon_button(Icon::Play, 12.0, 22.0, false, true),
-            widget::text("时间轴").size(12).color(TEXT_PRIMARY),
-            widget::text("帧 —").size(11).color(TEXT_SECONDARY),
+            widget::text(tr("Timeline", "时间轴"))
+                .size(12)
+                .color(TEXT_PRIMARY),
+            widget::text(format!("{} —", tr("Frame", "帧")))
+                .size(11)
+                .color(TEXT_SECONDARY),
         ]
         .spacing(6)
         .padding([4, 7])
         .align_y(iced::Alignment::Center);
 
         let empty_timeline = widget::row![
-            widget::container(widget::text("图层 0").size(12))
+            widget::container(widget::text(format!("{} 0", tr("Layers", "图层"))).size(12))
                 .width(Length::Fixed(208.0))
                 .height(Length::Fill)
                 .padding([6, 4])
@@ -29,9 +34,12 @@ impl Gridvana {
                     widget::container::Style::default().background(SURFACE_BACKGROUND)
                 }),
             widget::container(
-                widget::text("创建画布后显示帧和图层")
-                    .size(11)
-                    .color(TEXT_MUTED),
+                widget::text(tr(
+                    "Frames and layers appear after you create a canvas",
+                    "创建画布后显示帧和图层"
+                ))
+                .size(11)
+                .color(TEXT_MUTED),
             )
             .center(Length::Fill),
         ]
@@ -62,10 +70,14 @@ impl Gridvana {
         let onion_settings = self.onion_skin_settings;
         let onion_settings_controls: Vec<Element<'_, Message>> = if self.onion_skin_enabled {
             vec![
-                widget::text(format!("前 {}", onion_settings.previous_frames))
-                    .size(9)
-                    .color(TEXT_SECONDARY)
-                    .into(),
+                widget::text(format!(
+                    "{} {}",
+                    tr("Before", "前"),
+                    onion_settings.previous_frames
+                ))
+                .size(9)
+                .color(TEXT_SECONDARY)
+                .into(),
                 widget::slider(
                     0..=4,
                     onion_settings.previous_frames,
@@ -73,10 +85,14 @@ impl Gridvana {
                 )
                 .width(Length::Fixed(56.0))
                 .into(),
-                widget::text(format!("后 {}", onion_settings.next_frames))
-                    .size(9)
-                    .color(TEXT_SECONDARY)
-                    .into(),
+                widget::text(format!(
+                    "{} {}",
+                    tr("After", "后"),
+                    onion_settings.next_frames
+                ))
+                .size(9)
+                .color(TEXT_SECONDARY)
+                .into(),
                 widget::slider(
                     0..=4,
                     onion_settings.next_frames,
@@ -84,10 +100,14 @@ impl Gridvana {
                 )
                 .width(Length::Fixed(56.0))
                 .into(),
-                widget::text(format!("强度 {}%", onion_settings.opacity_percent))
-                    .size(9)
-                    .color(TEXT_SECONDARY)
-                    .into(),
+                widget::text(format!(
+                    "{} {}%",
+                    tr("Opacity", "强度"),
+                    onion_settings.opacity_percent
+                ))
+                .size(9)
+                .color(TEXT_SECONDARY)
+                .into(),
                 widget::slider(
                     0..=100,
                     onion_settings.opacity_percent,
@@ -96,19 +116,19 @@ impl Gridvana {
                 .width(Length::Fixed(76.0))
                 .into(),
                 timeline_toggle(
-                    "前帧着色",
+                    tr("Tint previous", "前帧着色"),
                     onion_settings.tint_previous,
                     Message::ToggleOnionPreviousTint,
                 )
                 .into(),
                 timeline_toggle(
-                    "后帧着色",
+                    tr("Tint next", "后帧着色"),
                     onion_settings.tint_next,
                     Message::ToggleOnionNextTint,
                 )
                 .into(),
                 timeline_toggle(
-                    "仅活动图层",
+                    tr("Active layer only", "仅活动图层"),
                     onion_settings.active_layer_only,
                     Message::ToggleOnionActiveLayerOnly,
                 )
@@ -119,7 +139,10 @@ impl Gridvana {
         };
 
         let mut control_items: Vec<Element<'_, Message>> = vec![
-            widget::text("时间轴").size(11).color(TEXT_PRIMARY).into(),
+            widget::text(tr("Timeline", "时间轴"))
+                .size(11)
+                .color(TEXT_PRIMARY)
+                .into(),
             icon_button(
                 if self.is_playing {
                     Icon::Pause
@@ -142,12 +165,17 @@ impl Gridvana {
                 .into(),
             widget::text("ms").size(9).color(TEXT_MUTED).into(),
             widget::Space::new().width(Length::Fixed(6.0)).into(),
-            timeline_action("＋标签", Message::AddAnimationTag).into(),
-            timeline_action("＋组", Message::AddLayerGroup).into(),
+            timeline_action(tr("+ Tag", "＋标签"), Message::AddAnimationTag).into(),
+            timeline_action(tr("+ Group", "＋组"), Message::AddLayerGroup).into(),
             widget::Space::new().width(Length::Fill).into(),
         ];
         control_items.push(
-            timeline_toggle("洋葱皮", self.onion_skin_enabled, Message::ToggleOnionSkin).into(),
+            timeline_toggle(
+                tr("Onion skin", "洋葱皮"),
+                self.onion_skin_enabled,
+                Message::ToggleOnionSkin,
+            )
+            .into(),
         );
         control_items.extend(onion_settings_controls);
 
@@ -221,7 +249,7 @@ impl Gridvana {
 
         let top_left_spacer = widget::container(
             widget::row![
-                widget::text(format!("图层 {}", active_layer_count)).size(12),
+                widget::text(format!("{} {}", tr("Layers", "图层"), active_layer_count)).size(12),
                 widget::Space::new().width(Length::Fill),
                 icon_button(Icon::Add, 10.0, 18.0, false, true).on_press(Message::AddLayer),
             ]
@@ -303,7 +331,7 @@ impl Gridvana {
                 _ => (from_position, to_position),
             };
             let tag_header_content: Element<'_, Message> = if is_active_tag {
-                widget::text_input("标签名", &tag.name)
+                widget::text_input(tr("Tag name", "标签名"), &tag.name)
                     .on_input(move |name| Message::RenameAnimationTag(tag_id, name))
                     .padding(2)
                     .size(11)
@@ -471,7 +499,12 @@ impl Gridvana {
                             )
                             .on_press(Message::ToggleLayerVisibility(layer_id)),
                             widget::button(
-                                widget::text(if layer.locked { "锁" } else { "开" }).size(9)
+                                widget::text(if layer.locked {
+                                    tr("L", "锁")
+                                } else {
+                                    tr("U", "开")
+                                })
+                                .size(9)
                             )
                             .on_press(Message::ToggleLayerLocked(layer_id))
                             .padding([1, 3]),
@@ -663,24 +696,24 @@ impl Gridvana {
 
         let entries: Vec<(&'static str, Option<Message>)> = vec![
             (
-                "复制",
+                tr("Copy", "复制"),
                 (selected_cels > 0).then_some(Message::CopyTimelineCels),
             ),
             (
-                "粘贴",
+                tr("Paste", "粘贴"),
                 (selected_cels > 0 && self.timeline_cel_clipboard.is_some())
                     .then_some(Message::PasteTimelineCels),
             ),
             (
-                "删除",
+                tr("Delete", "删除"),
                 (selected_cels > 0).then_some(Message::DeleteTimelineCels),
             ),
             (
-                "链接",
+                tr("Link", "链接"),
                 (selected_cels > 1 && populated_cels > 0).then_some(Message::LinkTimelineCels),
             ),
             (
-                "取消链接",
+                tr("Unlink", "取消链接"),
                 (selected_cels > 0).then_some(Message::UnlinkTimelineCels),
             ),
         ];

@@ -1,6 +1,7 @@
 use super::super::Gridvana;
 use super::super::PendingRecovery;
 use super::super::ui::normalize_project_save_path;
+use crate::i18n::tr;
 use crate::types::{
     InspectorPanel, Message, SpriteEmptyChoice, SpriteFrameRangeChoice, SpriteLayerRangeChoice,
     SpriteLayoutChoice, SpriteMetadataChoice, SpriteTrimChoice,
@@ -29,9 +30,13 @@ fn autosave_dirty_project(
 
 fn show_open_error(path: &Path, error: String) {
     let _ = MessageDialog::new()
-        .set_title("Open File Failed")
+        .set_title(tr("Open File Failed", "打开文件失败"))
         .set_level(MessageLevel::Error)
-        .set_description(format!("{}\n\nError: {error}", path.display()))
+        .set_description(format!(
+            "{}\n\n{}: {error}",
+            path.display(),
+            tr("Error", "错误")
+        ))
         .show();
 }
 
@@ -53,7 +58,10 @@ fn choose_export_path(filter_name: &str, extension: &str, file_name: &str) -> Op
 }
 
 fn choose_sprite_sheet_export_path(current_path: Option<&Path>) -> Option<PathBuf> {
-    let mut dialog = FileDialog::new().set_title("选择精灵表导出目录");
+    let mut dialog = FileDialog::new().set_title(tr(
+        "Choose sprite sheet export directory",
+        "选择精灵表导出目录",
+    ));
     if let Some(directory) = current_path.and_then(Path::parent) {
         dialog = dialog.set_directory(directory);
     }
@@ -64,9 +72,13 @@ fn choose_sprite_sheet_export_path(current_path: Option<&Path>) -> Option<PathBu
 
 fn show_export_error(format: &str, error: String) {
     let _ = MessageDialog::new()
-        .set_title(format!("Export {format} Failed"))
+        .set_title(format!(
+            "{} {format} {}",
+            tr("Export", "导出"),
+            tr("Failed", "失败")
+        ))
         .set_level(MessageLevel::Error)
-        .set_description(format!("Error: {error}"))
+        .set_description(format!("{}: {error}", tr("Error", "错误")))
         .show();
 }
 
@@ -165,9 +177,9 @@ impl Gridvana {
                         }
                         Err(error) => {
                             let _ = MessageDialog::new()
-                                .set_title("Save Project Failed")
+                                .set_title(tr("Save Project Failed", "保存项目失败"))
                                 .set_level(MessageLevel::Error)
-                                .set_description(format!("Error: {}", error))
+                                .set_description(format!("{}: {}", tr("Error", "错误"), error))
                                 .show();
                         }
                     }
@@ -186,7 +198,8 @@ impl Gridvana {
                                 .file_name()
                                 .map(|name| name.to_string_lossy().into_owned())
                                 .unwrap_or_default();
-                            self.last_export_summary = Some(format!("已导出 {name}"));
+                            self.last_export_summary =
+                                Some(format!("{} {name}", tr("Exported", "已导出")));
                         }
                         Err(error) => show_export_error("GIF", error),
                     }
@@ -206,8 +219,11 @@ impl Gridvana {
                                 .map(|stem| stem.to_string_lossy().into_owned())
                                 .unwrap_or_default();
                             let count = self.project.frames.len();
-                            self.last_export_summary =
-                                Some(format!("已导出 {count} 张 {stem}_*.png"));
+                            self.last_export_summary = Some(format!(
+                                "{} {count} {} {stem}_*.png",
+                                tr("Exported", "已导出"),
+                                tr("files", "张")
+                            ));
                         }
                         Err(error) => show_export_error("PNG Sequence", error),
                     }
@@ -338,8 +354,11 @@ impl Gridvana {
                                 .file_name()
                                 .map(|name| name.to_string_lossy().into_owned())
                                 .unwrap_or_default();
-                            self.last_export_summary =
-                                Some(format!("已导出 {png_name} 与 {json_name}"));
+                            self.last_export_summary = Some(format!(
+                                "{} {png_name} {} {json_name}",
+                                tr("Exported", "已导出"),
+                                tr("and", "与")
+                            ));
                         }
                         Err(error) => show_export_error("Sprite Sheet + JSON", error),
                     }

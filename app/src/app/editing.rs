@@ -7,6 +7,7 @@ use super::{
     ClipboardPixel, Gridvana, MAX_RECENT_COLORS, SelectionBoxDraft, SelectionClipboard, ShapeDraft,
     ShapeKind, StrokeBuilder, StrokeKind,
 };
+use crate::i18n::tr;
 use crate::types::{ColorSlot, SelectionCombineMode, Tool, TransformTargetChoice};
 use gridvana_core::commands::ReplaceProjectCommand;
 use gridvana_core::commands::{StrokeCommand, StrokePixel};
@@ -204,11 +205,15 @@ impl Gridvana {
             self.selection_indices.iter().copied(),
         ) {
             Ok(service) => {
-                self.mcp_status = format!("MCP 已连接 · {}", service.endpoint());
+                self.mcp_status = format!(
+                    "{} · {}",
+                    tr("MCP connected", "MCP 已连接"),
+                    service.endpoint()
+                );
                 self.mcp_service = Some(service);
             }
             Err(error) => {
-                self.mcp_status = format!("MCP 未启动 · {error}");
+                self.mcp_status = format!("{} · {error}", tr("MCP did not start", "MCP 未启动"));
             }
         }
     }
@@ -410,14 +415,16 @@ impl Gridvana {
     pub(super) fn shape_preview_hint(&self) -> Option<String> {
         if self.current_tool == Tool::Brush && self.hovered_grid_index.is_some() {
             return Some(format!(
-                "画笔 {}",
+                "{} {}",
+                tr("Brush", "画笔"),
                 tool_size_display(self.project.grid_config, self.brush_size)
             ));
         }
 
         if self.current_tool == Tool::Eraser && self.hovered_grid_index.is_some() {
             return Some(format!(
-                "橡皮擦 {}",
+                "{} {}",
+                tr("Eraser", "橡皮擦"),
                 tool_size_display(self.project.grid_config, self.eraser_size)
             ));
         }
@@ -436,26 +443,53 @@ impl Gridvana {
             ShapeKind::Rectangle => {
                 let width_cells = (dx / cell_size).round() as i32 + 1;
                 let height_cells = (dy / cell_size).round() as i32 + 1;
-                format!("矩形 {} × {}", width_cells.max(1), height_cells.max(1))
+                format!(
+                    "{} {} × {}",
+                    tr("Rectangle", "矩形"),
+                    width_cells.max(1),
+                    height_cells.max(1)
+                )
             }
             ShapeKind::RectangleHollow => {
                 let width_cells = (dx / cell_size).round() as i32 + 1;
                 let height_cells = (dy / cell_size).round() as i32 + 1;
-                format!("空心矩形 {} × {}", width_cells.max(1), height_cells.max(1))
+                format!(
+                    "{} {} × {}",
+                    tr("Rectangle outline", "空心矩形"),
+                    width_cells.max(1),
+                    height_cells.max(1)
+                )
             }
             ShapeKind::Circle => {
                 let radius_x = dx * 0.5 / cell_size;
                 let radius_y = dy * 0.5 / cell_size;
-                format!("圆形 半径 {:.1} / {:.1}", radius_x, radius_y)
+                format!(
+                    "{} {} {:.1} / {:.1}",
+                    tr("Circle", "圆形"),
+                    tr("radius", "半径"),
+                    radius_x,
+                    radius_y
+                )
             }
             ShapeKind::CircleHollow => {
                 let radius_x = dx * 0.5 / cell_size;
                 let radius_y = dy * 0.5 / cell_size;
-                format!("空心圆 半径 {:.1} / {:.1}", radius_x, radius_y)
+                format!(
+                    "{} {} {:.1} / {:.1}",
+                    tr("Circle outline", "空心圆"),
+                    tr("radius", "半径"),
+                    radius_x,
+                    radius_y
+                )
             }
             ShapeKind::Line => {
                 let length_cells = ((dx * dx + dy * dy).sqrt() / cell_size).max(0.0);
-                format!("线条 长度 {:.1}", length_cells)
+                format!(
+                    "{} {} {:.1}",
+                    tr("Line", "线条"),
+                    tr("length", "长度"),
+                    length_cells
+                )
             }
         };
 
@@ -955,7 +989,10 @@ impl Gridvana {
         if let Some(service) = self.mcp_service.as_mut()
             && let Err(error) = service.replace_editor_project(&self.project)
         {
-            self.mcp_status = format!("MCP 项目重置失败 · {error}");
+            self.mcp_status = format!(
+                "{} · {error}",
+                tr("MCP project reset failed", "MCP 项目重置失败")
+            );
         }
         self.project_path = project_path;
         self.normalize_project_state();

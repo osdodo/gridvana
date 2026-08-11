@@ -6,6 +6,7 @@ use super::super::ui::{
 };
 use super::super::{Gridvana, MAX_BRUSH_SIZE, MAX_ERASER_SIZE, MIN_BRUSH_SIZE, MIN_ERASER_SIZE};
 use crate::color_wheel;
+use crate::i18n::tr;
 use crate::icons::{Icon, icon_button};
 use crate::types::{
     ColorSlot, InspectorPanel, Message, SelectionCombineMode, Tool, TransformTargetChoice,
@@ -30,18 +31,18 @@ impl std::fmt::Display for LayerParentChoice {
 impl Gridvana {
     pub(super) fn active_tool_name(&self) -> &'static str {
         match self.current_tool {
-            Tool::HandPoint => "选择",
-            Tool::MagicWand => "魔棒选择",
-            Tool::ColorSelect => "按颜色选择",
-            Tool::Brush => "画笔",
-            Tool::Eraser => "橡皮擦",
-            Tool::PaintBucket => "油漆桶",
-            Tool::Picker => "拾色器",
-            Tool::Rectangle => "矩形",
-            Tool::RectangleHollow => "空心矩形",
-            Tool::Circle => "圆形",
-            Tool::CircleHollow => "空心圆",
-            Tool::Line => "线条",
+            Tool::HandPoint => tr("Select", "选择"),
+            Tool::MagicWand => tr("Magic wand", "魔棒选择"),
+            Tool::ColorSelect => tr("Select by color", "按颜色选择"),
+            Tool::Brush => tr("Brush", "画笔"),
+            Tool::Eraser => tr("Eraser", "橡皮擦"),
+            Tool::PaintBucket => tr("Paint bucket", "油漆桶"),
+            Tool::Picker => tr("Color picker", "拾色器"),
+            Tool::Rectangle => tr("Rectangle", "矩形"),
+            Tool::RectangleHollow => tr("Rectangle outline", "空心矩形"),
+            Tool::Circle => tr("Circle", "圆形"),
+            Tool::CircleHollow => tr("Circle outline", "空心圆"),
+            Tool::Line => tr("Line", "线条"),
         }
     }
 
@@ -189,12 +190,12 @@ impl Gridvana {
                 .center(Length::Fill)
         };
         let mut tabs = widget::row![
-            widget::button(tab_label("图层"))
+            widget::button(tab_label(tr("Layers", "图层")))
                 .on_press(Message::SetInspectorPanel(InspectorPanel::Layers))
                 .width(Length::FillPortion(1))
                 .height(Length::Fixed(34.0))
                 .style(tab_style(self.inspector_panel == InspectorPanel::Layers)),
-            widget::button(tab_label("导出"))
+            widget::button(tab_label(tr("Export", "导出")))
                 .on_press(Message::SetInspectorPanel(InspectorPanel::Export))
                 .width(Length::FillPortion(1))
                 .height(Length::Fixed(34.0))
@@ -288,7 +289,7 @@ impl Gridvana {
             layer_rows.push(row.into());
         }
         let layer_section = widget::column![
-            inspector_section_heading("图层".to_string(), layer_actions),
+            inspector_section_heading(tr("Layers", "图层").to_string(), layer_actions),
             widget::column(layer_rows).spacing(0),
         ]
         .spacing(0);
@@ -338,11 +339,14 @@ impl Gridvana {
                 .width(Length::Fixed(78.0))
         };
         let property_section = widget::column![
-            inspector_section_heading("活动图层".to_string(), widget::Space::new().into()),
+            inspector_section_heading(
+                tr("Active layer", "活动图层").to_string(),
+                widget::Space::new().into()
+            ),
             widget::container(
                 widget::column![
                     widget::row![
-                        property_label("类型"),
+                        property_label(tr("Type", "类型")),
                         widget::pick_list(LayerKind::ALL, Some(active_layer.kind), move |kind| {
                             Message::SetLayerKind(active_layer_id, kind)
                         },)
@@ -354,7 +358,7 @@ impl Gridvana {
                     ]
                     .align_y(iced::Alignment::Center),
                     widget::row![
-                        property_label("混合模式"),
+                        property_label(tr("Blend mode", "混合模式")),
                         widget::pick_list(
                             BlendMode::ALL,
                             Some(active_layer.blend_mode),
@@ -368,7 +372,7 @@ impl Gridvana {
                     ]
                     .align_y(iced::Alignment::Center),
                     widget::row![
-                        property_label("父组"),
+                        property_label(tr("Parent group", "父组")),
                         widget::pick_list(parent_choices, selected_parent, move |choice| {
                             Message::SetLayerParent(active_layer_id, choice.layer_id)
                         },)
@@ -380,7 +384,7 @@ impl Gridvana {
                     ]
                     .align_y(iced::Alignment::Center),
                     widget::row![
-                        property_label("不透明度"),
+                        property_label(tr("Opacity", "不透明度")),
                         widget::slider(0..=100, active_opacity, move |value| {
                             Message::SetLayerOpacity(active_layer_id, value)
                         })
@@ -392,12 +396,12 @@ impl Gridvana {
                     .spacing(6)
                     .align_y(iced::Alignment::Center),
                     widget::row![
-                        property_label("活动 Cel"),
+                        property_label(tr("Active Cel", "活动 Cel")),
                         widget::text(cel_label).size(10).color(TEXT_SECONDARY),
                     ]
                     .align_y(iced::Alignment::Center),
                     widget::row![
-                        property_label("偏移"),
+                        property_label(tr("Offset", "偏移")),
                         widget::text(cel_offset).size(10).color(TEXT_SECONDARY),
                     ]
                     .align_y(iced::Alignment::Center),
@@ -444,17 +448,17 @@ impl Gridvana {
                 })
             };
         let color_section = widget::column![
-            inspector_section_heading("颜色".to_string(), widget::Space::new().into()),
+            inspector_section_heading(tr("Color", "颜色").to_string(), widget::Space::new().into()),
             widget::container(
                 widget::column![
                     widget::row![
                         color_slot_button(
-                            "前景",
+                            tr("Foreground", "前景"),
                             ColorSlot::Foreground,
                             self.project.foreground_color
                         ),
                         color_slot_button(
-                            "背景",
+                            tr("Background", "背景"),
                             ColorSlot::Background,
                             self.project.background_color
                         ),
@@ -468,7 +472,7 @@ impl Gridvana {
                             .size(10)
                             .style(text_input_style)
                             .width(Length::Fill),
-                        widget::button(widget::text("交换").size(9))
+                        widget::button(widget::text(tr("Swap", "交换")).size(9))
                             .on_press(Message::SwapForegroundBackground)
                             .padding([6, 8]),
                     ]
@@ -478,7 +482,7 @@ impl Gridvana {
                         .width(Length::Fill)
                         .center_x(Length::Fill),
                     widget::row![
-                        widget::text("明度")
+                        widget::text(tr("Value", "明度"))
                             .size(10)
                             .color(TEXT_SECONDARY)
                             .width(Length::Fixed(42.0)),
@@ -547,7 +551,7 @@ impl Gridvana {
             }
         }
         let used_color_grid: Element<'_, Message> = if used_colors.is_empty() {
-            widget::text("暂无颜色记录")
+            widget::text(tr("No color history", "暂无颜色记录"))
                 .size(9)
                 .color(TEXT_MUTED)
                 .into()
@@ -573,7 +577,7 @@ impl Gridvana {
         };
         let palette_section = widget::column![
             inspector_section_heading(
-                "使用过的颜色".to_string(),
+                tr("Used colors", "使用过的颜色").to_string(),
                 widget::text(format!("{} / 16", used_colors.len().min(16)))
                     .size(9)
                     .color(TEXT_MUTED)
@@ -631,18 +635,18 @@ impl Gridvana {
 
         let selection_actions = widget::column![
             widget::row![
-                action_button("全选", Message::SelectAllPixels),
-                action_button("反选", Message::InvertPixelSelection),
+                action_button(tr("Select all", "全选"), Message::SelectAllPixels),
+                action_button(tr("Invert", "反选"), Message::InvertPixelSelection),
             ]
             .spacing(4),
             widget::row![
-                action_button("取消", Message::ClearPixelSelection),
-                action_button("删除", Message::DeletePixelSelection),
+                action_button(tr("Deselect", "取消"), Message::ClearPixelSelection),
+                action_button(tr("Delete", "删除"), Message::DeletePixelSelection),
             ]
             .spacing(4),
             widget::row![
-                action_button("剪切", Message::CutPixelSelection),
-                action_button("复制", Message::CopySelection),
+                action_button(tr("Cut", "剪切"), Message::CutPixelSelection),
+                action_button(tr("Copy", "复制"), Message::CopySelection),
             ]
             .spacing(4),
         ]
@@ -651,22 +655,22 @@ impl Gridvana {
         let transform_actions = widget::column![
             widget::row![
                 square_grid_action(
-                    "水平翻转",
+                    tr("Flip horizontal", "水平翻转"),
                     Message::TransformPixelSelection(PixelTransform::FlipHorizontal),
                 ),
                 square_grid_action(
-                    "垂直翻转",
+                    tr("Flip vertical", "垂直翻转"),
                     Message::TransformPixelSelection(PixelTransform::FlipVertical),
                 ),
             ]
             .spacing(4),
             widget::row![
                 square_grid_action(
-                    "顺时针",
+                    tr("Clockwise", "顺时针"),
                     Message::TransformPixelSelection(PixelTransform::RotateClockwise),
                 ),
                 square_grid_action(
-                    "逆时针",
+                    tr("Counterclockwise", "逆时针"),
                     Message::TransformPixelSelection(PixelTransform::RotateCounterClockwise),
                 ),
             ]
@@ -679,7 +683,7 @@ impl Gridvana {
                     .size(10)
                     .color(TEXT_MUTED),
                 square_grid_action(
-                    "缩放",
+                    tr("Scale", "缩放"),
                     Message::TransformPixelSelection(PixelTransform::ScaleInteger {
                         factor: self.transform_scale,
                     }),
@@ -693,14 +697,14 @@ impl Gridvana {
 
         let canvas_size = widget::column![
             widget::row![
-                widget::text_input("宽", &self.resize_canvas_width)
+                widget::text_input(tr("Width", "宽"), &self.resize_canvas_width)
                     .on_input(Message::UpdateResizeCanvasWidth)
                     .on_submit(Message::ResizeCurrentCanvas)
                     .padding([6, 7])
                     .size(10)
                     .style(text_input_style)
                     .width(Length::FillPortion(1)),
-                widget::text_input("高", &self.resize_canvas_height)
+                widget::text_input(tr("Height", "高"), &self.resize_canvas_height)
                     .on_input(Message::UpdateResizeCanvasHeight)
                     .on_submit(Message::ResizeCurrentCanvas)
                     .padding([6, 7])
@@ -709,9 +713,15 @@ impl Gridvana {
                     .width(Length::FillPortion(1)),
             ]
             .spacing(4),
-            action_button("应用画布尺寸", Message::ResizeCurrentCanvas),
+            action_button(
+                tr("Apply canvas size", "应用画布尺寸"),
+                Message::ResizeCurrentCanvas
+            ),
             widget::row![
-                square_grid_action("裁到选区", Message::CropCanvasToSelection),
+                square_grid_action(
+                    tr("Crop to selection", "裁到选区"),
+                    Message::CropCanvasToSelection
+                ),
                 square_grid_action("Trim", Message::TrimCanvas),
             ]
             .spacing(4),
@@ -719,11 +729,17 @@ impl Gridvana {
         .spacing(4);
 
         let sidebar_content = widget::column![
-            widget::text("选择与变换").size(13).color(TEXT_PRIMARY),
-            widget::text(format!("{} 个网格单元", self.selection_indices.len()))
-                .size(10)
-                .color(TEXT_MUTED),
-            section_label("组合模式"),
+            widget::text(tr("Selection & transform", "选择与变换"))
+                .size(13)
+                .color(TEXT_PRIMARY),
+            widget::text(format!(
+                "{} {}",
+                self.selection_indices.len(),
+                tr("grid cells", "个网格单元")
+            ))
+            .size(10)
+            .color(TEXT_MUTED),
+            section_label(tr("Combine mode", "组合模式")),
             widget::pick_list(
                 SelectionCombineMode::ALL,
                 Some(self.selection_combine_mode),
@@ -735,7 +751,7 @@ impl Gridvana {
             .menu_style(pick_list_menu_style)
             .width(Length::Fill),
             selection_actions,
-            section_label("变换目标"),
+            section_label(tr("Transform target", "变换目标")),
             widget::pick_list(
                 TransformTargetChoice::ALL,
                 Some(self.transform_target),
@@ -747,7 +763,7 @@ impl Gridvana {
             .menu_style(pick_list_menu_style)
             .width(Length::Fill),
             transform_actions,
-            section_label("画布"),
+            section_label(tr("Canvas", "画布")),
             canvas_size,
         ]
         .spacing(8);
@@ -773,7 +789,9 @@ impl Gridvana {
                     widget::text(active_tool_name.to_string())
                         .size(10)
                         .color(TEXT_PRIMARY),
-                    widget::text("尚未创建画布").size(10).color(TEXT_SECONDARY),
+                    widget::text(tr("No canvas created", "尚未创建画布"))
+                        .size(10)
+                        .color(TEXT_SECONDARY),
                     widget::Space::new().width(Length::Fill),
                 ]
                 .spacing(12)
@@ -787,14 +805,14 @@ impl Gridvana {
 
         let displayed_project = self.displayed_project();
         let save_status = if self.autosave_error.is_some() {
-            "自动保存失败"
+            tr("Autosave failed", "自动保存失败")
         } else if self.is_saved {
-            "已保存"
+            tr("Saved", "已保存")
         } else {
-            "未保存"
+            tr("Unsaved", "未保存")
         };
 
-        let mcp_connected = self.mcp_status.starts_with("MCP 已连接");
+        let mcp_connected = self.mcp_service.is_some();
         let status_light = widget::container(widget::Space::new())
             .width(Length::Fixed(7.0))
             .height(Length::Fixed(7.0))
@@ -815,15 +833,17 @@ impl Gridvana {
             widget::row![
                 status_light,
                 widget::text(if mcp_connected {
-                    "MCP 会话可用"
+                    tr("MCP available", "MCP 会话可用")
                 } else {
-                    "MCP 不可用"
+                    tr("MCP unavailable", "MCP 不可用")
                 })
                 .size(10)
                 .color(TEXT_MUTED),
                 widget::text(format!(
-                    "网格 {} × {}",
-                    displayed_project.canvas_width, displayed_project.canvas_height,
+                    "{} {} × {}",
+                    tr("Grid", "网格"),
+                    displayed_project.canvas_width,
+                    displayed_project.canvas_height,
                 ))
                 .size(10)
                 .color(TEXT_MUTED),

@@ -1,3 +1,4 @@
+use crate::i18n::{Language, current_language, tr};
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -19,15 +20,26 @@ If the project summary reports a zero-width or zero-height canvas, no canvas exi
 Do not use image generation, filesystem image assets, or repository code changes for Gridvana project requests. Only perform software-development work when the user explicitly asks to change software or code."#;
 
 pub(crate) fn mcp_agent_prompt(endpoint: &str) -> String {
-    format!(
-        r#"请将下面的 Streamable HTTP MCP 服务添加为 `gridvana` 并连接，然后使用它处理我接下来的 Gridvana 画布请求。
+    match current_language() {
+        Language::English => format!(
+            r#"Add the Streamable HTTP MCP service below as `gridvana` and connect to it, then use it for my next Gridvana canvas request.
+
+MCP service URL: {endpoint}
+
+After connecting, first read `gridvana://project/summary`, `gridvana://selection/current`, and `gridvana://schema/edit-op`. When editing the canvas, start an edit session, apply and preview the operations, and commit only after the result is complete.
+
+This address works only on this device. Keep Gridvana open while using it."#
+        ),
+        Language::Chinese => format!(
+            r#"请将下面的 Streamable HTTP MCP 服务添加为 `gridvana` 并连接，然后使用它处理我接下来的 Gridvana 画布请求。
 
 MCP 服务地址：{endpoint}
 
 连接后，请先读取 `gridvana://project/summary`、`gridvana://selection/current` 和 `gridvana://schema/edit-op`。需要编辑画布时，请启动一个编辑会话，应用并预览操作，确认结果完整后再提交。
 
 该地址仅在本机有效。使用期间请保持 Gridvana 开启。"#
-    )
+        ),
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -139,16 +151,24 @@ impl CliConfig {
 
     fn validate(&self) -> Result<(), String> {
         if self.selected_command().trim().is_empty() {
-            return Err("CLI 命令不能为空".to_string());
+            return Err(tr("CLI command cannot be empty", "CLI 命令不能为空").to_string());
         }
         if self.selected_command().contains('\0') {
-            return Err("CLI 命令包含非法字符".to_string());
+            return Err(tr(
+                "CLI command contains an invalid character",
+                "CLI 命令包含非法字符",
+            )
+            .to_string());
         }
         if !matches!(
             self.claude.effort.as_str(),
             "default" | "low" | "medium" | "high" | "max"
         ) {
-            return Err("Claude Effort 必须是 default、low、medium、high 或 max".to_string());
+            return Err(tr(
+                "Claude Effort must be default, low, medium, high, or max",
+                "Claude Effort 必须是 default、low、medium、high 或 max",
+            )
+            .to_string());
         }
         Ok(())
     }
@@ -164,29 +184,60 @@ pub fn cli_config_path() -> PathBuf {
 fn load_from(path: &Path) -> Result<CliConfig, String> {
     match fs::read(path) {
         Ok(bytes) => {
-            let config: CliConfig = serde_json::from_slice(&bytes)
-                .map_err(|error| format!("CLI 配置格式无效：{error}"))?;
+            let config: CliConfig = serde_json::from_slice(&bytes).map_err(|error| {
+                format!(
+                    "{}: {error}",
+                    tr("Invalid CLI configuration", "CLI 配置格式无效")
+                )
+            })?;
             config.validate()?;
             Ok(config)
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(CliConfig::default()),
-        Err(error) => Err(format!("无法读取 CLI 配置：{error}")),
+        Err(error) => Err(format!(
+            "{}: {error}",
+            tr("Could not read CLI configuration", "无法读取 CLI 配置")
+        )),
     }
 }
 
 fn save_to(config: &CliConfig, path: &Path) -> Result<(), String> {
     config.validate()?;
-    let parent = path
-        .parent()
-        .ok_or_else(|| "CLI 配置目录不可用".to_string())?;
-    fs::create_dir_all(parent).map_err(|error| format!("无法创建 CLI 配置目录：{error}"))?;
-    let bytes =
-        serde_json::to_vec_pretty(config).map_err(|error| format!("无法编码 CLI 配置：{error}"))?;
+    let parent = path.parent().ok_or_else(|| {
+        tr(
+            "CLI configuration directory is unavailable",
+            "CLI 配置目录不可用",
+        )
+        .to_string()
+    })?;
+    fs::create_dir_all(parent).map_err(|error| {
+        format!(
+            "{}: {error}",
+            tr(
+                "Could not create CLI configuration directory",
+                "无法创建 CLI 配置目录"
+            )
+        )
+    })?;
+    let bytes = serde_json::to_vec_pretty(config).map_err(|error| {
+        format!(
+            "{}: {error}",
+            tr("Could not encode CLI configuration", "无法编码 CLI 配置")
+        )
+    })?;
     let temporary = path.with_extension("json.tmp");
-    fs::write(&temporary, bytes).map_err(|error| format!("无法写入 CLI 配置：{error}"))?;
+    fs::write(&temporary, bytes).map_err(|error| {
+        format!(
+            "{}: {error}",
+            tr("Could not write CLI configuration", "无法写入 CLI 配置")
+        )
+    })?;
     fs::rename(&temporary, path).map_err(|error| {
         let _ = fs::remove_file(&temporary);
-        format!("无法保存 CLI 配置：{error}")
+        format!(
+            "{}: {error}",
+            tr("Could not save CLI configuration", "无法保存 CLI 配置")
+        )
     })
 }
 
@@ -495,10 +546,25 @@ fn claude_launch_spec(
     });
     fs::write(
         &config_path,
-        serde_json::to_vec_pretty(&mcp_config)
-            .map_err(|error| format!("无法编码 Claude MCP 配置：{error}"))?,
+        serde_json::to_vec_pretty(&mcp_config).map_err(|error| {
+            format!(
+                "{}: {error}",
+                tr(
+                    "Could not encode Claude MCP configuration",
+                    "无法编码 Claude MCP 配置"
+                )
+            )
+        })?,
     )
-    .map_err(|error| format!("无法创建 Claude MCP 配置：{error}"))?;
+    .map_err(|error| {
+        format!(
+            "{}: {error}",
+            tr(
+                "Could not create Claude MCP configuration",
+                "无法创建 Claude MCP 配置"
+            )
+        )
+    })?;
 
     let mut args = vec![
         "--strict-mcp-config".to_string(),
@@ -565,7 +631,12 @@ impl TerminalSession {
                 pixel_width: 0,
                 pixel_height: 0,
             })
-            .map_err(|error| format!("无法创建终端：{error}"))?;
+            .map_err(|error| {
+                format!(
+                    "{}: {error}",
+                    tr("Could not create terminal", "无法创建终端")
+                )
+            })?;
 
         let mut command = CommandBuilder::new(&spec.program);
         command.args(&spec.args);
@@ -577,16 +648,20 @@ impl TerminalSession {
         let child = pair
             .slave
             .spawn_command(command)
-            .map_err(|error| format!("无法启动 {agent}：{error}"))?;
+            .map_err(|error| format!("{} {agent}: {error}", tr("Could not start", "无法启动")))?;
         drop(pair.slave);
-        let mut reader = pair
-            .master
-            .try_clone_reader()
-            .map_err(|error| format!("无法读取 {agent} 终端：{error}"))?;
-        let writer = pair
-            .master
-            .take_writer()
-            .map_err(|error| format!("无法写入 {agent} 终端：{error}"))?;
+        let mut reader = pair.master.try_clone_reader().map_err(|error| {
+            format!(
+                "{} {agent}: {error}",
+                tr("Could not read terminal for", "无法读取终端")
+            )
+        })?;
+        let writer = pair.master.take_writer().map_err(|error| {
+            format!(
+                "{} {agent}: {error}",
+                tr("Could not write to terminal for", "无法写入终端")
+            )
+        })?;
         let (sender, output) = mpsc::channel();
         let reader_thread = std::thread::spawn(move || {
             let mut buffer = vec![0_u8; 16 * 1024];
@@ -619,7 +694,7 @@ impl TerminalSession {
         self.writer
             .write_all(input)
             .and_then(|()| self.writer.flush())
-            .map_err(|error| format!("终端输入失败：{error}"))
+            .map_err(|error| format!("{}: {error}", tr("Terminal input failed", "终端输入失败")))
     }
 
     pub fn resize(&self, cols: u16, rows: u16) -> Result<(), String> {
@@ -630,7 +705,12 @@ impl TerminalSession {
                 pixel_width: 0,
                 pixel_height: 0,
             })
-            .map_err(|error| format!("终端尺寸更新失败：{error}"))
+            .map_err(|error| {
+                format!(
+                    "{}: {error}",
+                    tr("Could not resize terminal", "终端尺寸更新失败")
+                )
+            })
     }
 
     pub fn drain_output(&self) -> Vec<Vec<u8>> {
@@ -638,9 +718,12 @@ impl TerminalSession {
     }
 
     pub fn try_wait(&mut self) -> Result<Option<portable_pty::ExitStatus>, String> {
-        self.child
-            .try_wait()
-            .map_err(|error| format!("无法读取终端状态：{error}"))
+        self.child.try_wait().map_err(|error| {
+            format!(
+                "{}: {error}",
+                tr("Could not read terminal status", "无法读取终端状态")
+            )
+        })
     }
 }
 
@@ -736,7 +819,7 @@ mod tests {
         assert!(prompt.contains("gridvana://project/summary"));
         assert!(prompt.contains("gridvana://selection/current"));
         assert!(prompt.contains("gridvana://schema/edit-op"));
-        assert!(prompt.contains("应用并预览操作"));
+        assert!(prompt.contains("apply and preview the operations"));
     }
 
     #[test]

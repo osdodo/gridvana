@@ -1,6 +1,7 @@
 use super::native_menu::NativeMenuState;
 use crate::canvas::OnionSkinSettings;
 use crate::cli_terminal::{CliConfig, TerminalSession};
+use crate::i18n::{AppPreferences, Language};
 use crate::types::{
     ColorSlot, InspectorPanel, SelectionCombineMode, SettingsSection, SpriteEmptyChoice,
     SpriteFrameRangeChoice, SpriteLayerRangeChoice, SpriteLayoutChoice, SpriteMetadataChoice,
@@ -186,6 +187,9 @@ pub struct Gridvana {
     pub(super) terminal_size: Option<(u16, u16)>,
     pub(super) cli_settings_open: bool,
     pub(super) settings_section: SettingsSection,
+    pub(super) preferences: AppPreferences,
+    pub(super) language: Language,
+    pub(super) language_save_error: Option<String>,
     pub(super) about_dialog_open: bool,
     pub(super) cli_config: CliConfig,
     pub(super) cli_config_draft: CliConfig,

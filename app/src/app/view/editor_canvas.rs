@@ -4,6 +4,7 @@ use super::super::ui::{
     TEXT_MUTED, TEXT_PRIMARY,
 };
 use crate::canvas;
+use crate::i18n::tr;
 use crate::types::Message;
 use gridvana_core::grid::GridIndex;
 use iced::{Element, Length, Theme, widget};
@@ -15,7 +16,7 @@ const CONTEXT_TOOLBAR_MARGIN: f32 = 10.0;
 impl Gridvana {
     pub(super) fn editor_empty_canvas(&self) -> Element<'_, Message> {
         let empty_stage = widget::container(
-            widget::button(widget::text("创建画布").size(11))
+            widget::button(widget::text(tr("Create canvas", "创建画布")).size(11))
                 .on_press(Message::OpenNewProjectDialog)
                 .padding([7, 14]),
         )
@@ -99,24 +100,28 @@ impl Gridvana {
                     })
                     .into()
             }
-            Err(_) => widget::container(widget::text("预览渲染失败").size(10))
-                .width(Length::Fixed(PREVIEW_PANEL_SIDE))
-                .height(Length::Fixed(PREVIEW_PANEL_SIDE))
-                .center(Length::Fill)
-                .style(|_| {
-                    widget::container::Style::default()
-                        .background(SURFACE_BACKGROUND)
-                        .border(iced::Border {
-                            color: BORDER_SUBTLE,
-                            width: 1.0,
-                            radius: 2.0.into(),
-                        })
-                })
-                .into(),
+            Err(_) => widget::container(
+                widget::text(tr("Preview render failed", "预览渲染失败")).size(10),
+            )
+            .width(Length::Fixed(PREVIEW_PANEL_SIDE))
+            .height(Length::Fixed(PREVIEW_PANEL_SIDE))
+            .center(Length::Fill)
+            .style(|_| {
+                widget::container::Style::default()
+                    .background(SURFACE_BACKGROUND)
+                    .border(iced::Border {
+                        color: BORDER_SUBTLE,
+                        width: 1.0,
+                        radius: 2.0.into(),
+                    })
+            })
+            .into(),
         };
         let preview_title = widget::container(
             widget::text(format!(
-                "预览 · 帧 {}/{}",
+                "{} · {} {}/{}",
+                tr("Preview", "预览"),
+                tr("Frame", "帧"),
                 displayed_project.active_frame_position().unwrap_or(0) + 1,
                 displayed_project.frames.len(),
             ))

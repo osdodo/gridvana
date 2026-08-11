@@ -1,11 +1,12 @@
 use crate::cli_terminal::CliAgent;
+use crate::i18n::Language;
 use gridvana_core::grid::GridIndex;
 use gridvana_core::model::{BlendMode, FrameId, LayerId, LayerKind, Rgba, TagId};
 use gridvana_core::transform::PixelTransform;
 use iced::Point;
 
 macro_rules! export_choice {
-    ($name:ident, [$($variant:ident => $label:literal),+ $(,)?]) => {
+    ($name:ident, [$($variant:ident => ($english:literal, $chinese:literal)),+ $(,)?]) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub enum $name { $($variant),+ }
 
@@ -15,7 +16,9 @@ macro_rules! export_choice {
 
         impl std::fmt::Display for $name {
             fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                let label = match self { $(Self::$variant => $label),+ };
+                let label = match self {
+                    $(Self::$variant => crate::i18n::tr($english, $chinese)),+
+                };
                 formatter.write_str(label)
             }
         }
@@ -24,14 +27,14 @@ macro_rules! export_choice {
     (@unit $variant:ident) => { () };
 }
 
-export_choice!(SpriteFrameRangeChoice, [All => "全部帧", ActiveTag => "活动标签"]);
-export_choice!(SpriteLayerRangeChoice, [Visible => "可见图层", All => "全部图层", Active => "活动图层"]);
-export_choice!(SpriteLayoutChoice, [Horizontal => "横向", Vertical => "纵向", FixedRows => "固定行数", FixedColumns => "固定列数"]);
-export_choice!(SpriteTrimChoice, [None => "不裁切", Sprite => "整体裁切", PerFrame => "逐帧裁切"]);
-export_choice!(SpriteEmptyChoice, [Include => "保留空帧", Skip => "跳过空帧", Error => "遇空帧报错"]);
-export_choice!(SpriteMetadataChoice, [Array => "JSON Array", Hash => "JSON Hash"]);
-export_choice!(SelectionCombineMode, [Replace => "替换", Add => "相加", Subtract => "相减", Intersect => "相交"]);
-export_choice!(TransformTargetChoice, [CurrentCel => "当前 Cel", SelectedCels => "选中 Cel", CompositedFrame => "合成帧"]);
+export_choice!(SpriteFrameRangeChoice, [All => ("All frames", "全部帧"), ActiveTag => ("Active tag", "活动标签")]);
+export_choice!(SpriteLayerRangeChoice, [Visible => ("Visible layers", "可见图层"), All => ("All layers", "全部图层"), Active => ("Active layer", "活动图层")]);
+export_choice!(SpriteLayoutChoice, [Horizontal => ("Horizontal", "横向"), Vertical => ("Vertical", "纵向"), FixedRows => ("Fixed rows", "固定行数"), FixedColumns => ("Fixed columns", "固定列数")]);
+export_choice!(SpriteTrimChoice, [None => ("No trim", "不裁切"), Sprite => ("Trim sprite", "整体裁切"), PerFrame => ("Trim each frame", "逐帧裁切")]);
+export_choice!(SpriteEmptyChoice, [Include => ("Keep empty frames", "保留空帧"), Skip => ("Skip empty frames", "跳过空帧"), Error => ("Error on empty frame", "遇空帧报错")]);
+export_choice!(SpriteMetadataChoice, [Array => ("JSON Array", "JSON Array"), Hash => ("JSON Hash", "JSON Hash")]);
+export_choice!(SelectionCombineMode, [Replace => ("Replace", "替换"), Add => ("Add", "相加"), Subtract => ("Subtract", "相减"), Intersect => ("Intersect", "相交")]);
+export_choice!(TransformTargetChoice, [CurrentCel => ("Current Cel", "当前 Cel"), SelectedCels => ("Selected Cels", "选中 Cel"), CompositedFrame => ("Composited frame", "合成帧")]);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorSlot {
@@ -48,6 +51,7 @@ pub enum InspectorPanel {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SettingsSection {
+    General,
     Agent,
     Mcp,
 }
@@ -75,6 +79,7 @@ pub enum Message {
     OpenCliSettings,
     CloseCliSettings,
     SelectSettingsSection(SettingsSection),
+    SetLanguage(Language),
     OpenAbout,
     CloseAbout,
     SelectCliAgent(CliAgent),

@@ -3,6 +3,7 @@ use super::super::ui::{
     TEXT_MUTED, TEXT_PRIMARY, TEXT_SECONDARY, pick_list_menu_style, pick_list_style,
 };
 use super::super::{Gridvana, PendingRecovery};
+use crate::i18n::tr;
 use crate::types::{
     InspectorPanel, Message, SpriteEmptyChoice, SpriteFrameRangeChoice, SpriteLayerRangeChoice,
     SpriteLayoutChoice, SpriteMetadataChoice, SpriteTrimChoice,
@@ -18,21 +19,28 @@ impl Gridvana {
                     .project_path
                     .as_ref()
                     .map(|path| path.display().to_string())
-                    .unwrap_or_else(|| "未命名项目".to_string());
-                ("发现未保存的项目", format!("恢复来源：{source}"), true)
+                    .unwrap_or_else(|| tr("Untitled project", "未命名项目").to_string());
+                (
+                    tr("Unsaved project found", "发现未保存的项目"),
+                    format!("{}: {source}", tr("Recovery source", "恢复来源")),
+                    true,
+                )
             }
             PendingRecovery::Damaged(error) => (
-                "恢复文件已损坏",
-                format!("无法读取自动恢复内容：{error}"),
+                tr("Recovery file is damaged", "恢复文件已损坏"),
+                format!(
+                    "{}: {error}",
+                    tr("Could not read autosave recovery", "无法读取自动恢复内容")
+                ),
                 false,
             ),
         };
 
         let discard = widget::button(
             widget::container(widget::text(if can_recover {
-                "丢弃恢复文件"
+                tr("Discard recovery file", "丢弃恢复文件")
             } else {
-                "丢弃损坏文件"
+                tr("Discard damaged file", "丢弃损坏文件")
             }))
             .width(Length::Fill)
             .align_x(iced::Alignment::Center),
@@ -44,7 +52,7 @@ impl Gridvana {
 
         let actions: Element<'_, Message> = if can_recover {
             let recover = widget::button(
-                widget::container(widget::text("恢复项目"))
+                widget::container(widget::text(tr("Recover project", "恢复项目")))
                     .width(Length::Fill)
                     .align_x(iced::Alignment::Center),
             )
@@ -92,12 +100,15 @@ impl Gridvana {
         let form = self.sprite_sheet_export_form;
         let estimate_valid = self.sprite_sheet_export_estimate.is_ok();
         let estimate = match &self.sprite_sheet_export_estimate {
-            Ok((width, height)) => format!("预计尺寸：{width} × {height} px"),
-            Err(error) => format!("无法导出：{error}"),
+            Ok((width, height)) => format!(
+                "{}: {width} × {height} px",
+                tr("Estimated size", "预计尺寸")
+            ),
+            Err(error) => format!("{}: {error}", tr("Cannot export", "无法导出")),
         };
         let first_row = widget::row![
             export_select_field(
-                "帧范围",
+                tr("Frame range", "帧范围"),
                 widget::pick_list(
                     SpriteFrameRangeChoice::ALL,
                     Some(form.frame_range),
@@ -109,7 +120,7 @@ impl Gridvana {
                 .into(),
             ),
             export_select_field(
-                "图层范围",
+                tr("Layer range", "图层范围"),
                 widget::pick_list(
                     SpriteLayerRangeChoice::ALL,
                     Some(form.layer_range),
@@ -121,7 +132,7 @@ impl Gridvana {
                 .into(),
             ),
             export_select_field(
-                "布局",
+                tr("Layout", "布局"),
                 widget::pick_list(
                     SpriteLayoutChoice::ALL,
                     Some(form.layout),
@@ -136,7 +147,7 @@ impl Gridvana {
         .spacing(10);
         let second_row = widget::row![
             export_select_field(
-                "裁切",
+                tr("Trim", "裁切"),
                 widget::pick_list(
                     SpriteTrimChoice::ALL,
                     Some(form.trim),
@@ -148,7 +159,7 @@ impl Gridvana {
                 .into(),
             ),
             export_select_field(
-                "空帧",
+                tr("Empty frames", "空帧"),
                 widget::pick_list(
                     SpriteEmptyChoice::ALL,
                     Some(form.empty),
@@ -160,7 +171,7 @@ impl Gridvana {
                 .into(),
             ),
             export_select_field(
-                "元数据",
+                tr("Metadata", "元数据"),
                 widget::pick_list(
                     SpriteMetadataChoice::ALL,
                     Some(form.metadata),
@@ -186,13 +197,13 @@ impl Gridvana {
         };
         let numeric_row = widget::row![
             slider(
-                format!("倍率 {}×", form.scale),
+                format!("{} {}×", tr("Scale", "倍率"), form.scale),
                 1..=16,
                 form.scale,
                 Message::SetSpriteScale,
             ),
             slider(
-                format!("行/列数 {}", form.fixed_count),
+                format!("{} {}", tr("Rows/columns", "行/列数"), form.fixed_count),
                 1..=16,
                 form.fixed_count,
                 Message::SetSpriteFixedCount,
@@ -227,7 +238,7 @@ impl Gridvana {
         ]
         .spacing(10);
         let confirm = widget::button(
-            widget::container(widget::text("导出 PNG + JSON").size(12))
+            widget::container(widget::text(tr("Export PNG + JSON", "导出 PNG + JSON")).size(12))
                 .width(Length::Fill)
                 .align_x(iced::Alignment::Center),
         )
@@ -240,7 +251,7 @@ impl Gridvana {
             confirm.into()
         };
         let cancel = widget::button(
-            widget::container(widget::text("取消").size(12))
+            widget::container(widget::text(tr("Cancel", "取消")).size(12))
                 .width(Length::Fill)
                 .align_x(iced::Alignment::Center),
         )
@@ -250,7 +261,7 @@ impl Gridvana {
         .style(start_action_button_style(false));
         let card = widget::container(
             widget::column![
-                widget::text("高级 Sprite Sheet 导出")
+                widget::text(tr("Advanced Sprite Sheet export", "高级 Sprite Sheet 导出"))
                     .size(20)
                     .color(TEXT_PRIMARY),
                 widget::text(format!("PNG：{}", png_path.display()))
@@ -314,13 +325,13 @@ impl Gridvana {
         let stacked_actions = size.width < 420.0;
 
         let width_field = start_dimension_field(
-            "宽度",
+            tr("Width", "宽度"),
             &self.new_project_width,
             width_valid,
             Message::UpdateCanvasWidth,
         );
         let height_field = start_dimension_field(
-            "高度",
+            tr("Height", "高度"),
             &self.new_project_height,
             height_valid,
             Message::UpdateCanvasHeight,
@@ -339,7 +350,7 @@ impl Gridvana {
 
         let create_button: Element<'_, Message> = if project_ready {
             widget::button(
-                widget::container(widget::text("创建画布").size(12))
+                widget::container(widget::text(tr("Create canvas", "创建画布")).size(12))
                     .width(Length::Fill)
                     .align_x(iced::Alignment::Center),
             )
@@ -350,7 +361,7 @@ impl Gridvana {
             .into()
         } else {
             widget::button(
-                widget::container(widget::text("创建画布").size(12))
+                widget::container(widget::text(tr("Create canvas", "创建画布")).size(12))
                     .width(Length::Fill)
                     .align_x(iced::Alignment::Center),
             )
@@ -361,7 +372,7 @@ impl Gridvana {
         };
 
         let secondary_button = widget::button(
-            widget::container(widget::text("取消").size(12))
+            widget::container(widget::text(tr("Cancel", "取消")).size(12))
                 .width(Length::Fill)
                 .align_x(iced::Alignment::Center),
         )
@@ -372,8 +383,12 @@ impl Gridvana {
 
         let mut form = widget::column![
             widget::column![
-                widget::text("创建画布").size(20).color(TEXT_PRIMARY),
-                widget::text("设置画布尺寸").size(11).color(TEXT_MUTED),
+                widget::text(tr("Create canvas", "创建画布"))
+                    .size(20)
+                    .color(TEXT_PRIMARY),
+                widget::text(tr("Set the canvas size", "设置画布尺寸"))
+                    .size(11)
+                    .color(TEXT_MUTED),
             ]
             .spacing(4),
             size_fields,
@@ -383,7 +398,7 @@ impl Gridvana {
 
         if !project_ready {
             form = form.push(
-                widget::text("尺寸范围 1 - 4096")
+                widget::text(tr("Size must be between 1 and 4096", "尺寸范围 1 - 4096"))
                     .size(11)
                     .color(Color::from_rgb8(225, 125, 133)),
             );

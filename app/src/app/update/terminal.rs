@@ -1,6 +1,7 @@
 use super::super::Gridvana;
 use super::super::McpCopyFeedback;
 use crate::cli_terminal::{TerminalSession, cli_environment, mcp_agent_prompt};
+use crate::i18n::{set_current_language, tr};
 use crate::types::{InspectorPanel, Message};
 use crate::web_terminal::{self, WebTerminalEvent};
 use iced::Task;
@@ -52,6 +53,46 @@ impl Gridvana {
             }
             Message::SelectSettingsSection(section) => {
                 self.settings_section = section;
+                Ok(Task::none())
+            }
+            Message::SetLanguage(language) => {
+                self.language = language;
+                self.preferences.language = language;
+                set_current_language(language);
+                self.language_save_error = self.preferences.save().err();
+                self.native_menu.set_language();
+                self.mcp_status = self.mcp_service.as_ref().map_or_else(
+                    || tr("MCP is not running", "MCP 未启动").to_string(),
+                    |service| {
+                        format!(
+                            "{} · {}",
+                            tr("MCP connected", "MCP 已连接"),
+                            service.endpoint()
+                        )
+                    },
+                );
+                self.cli_status = self.terminal_session.as_ref().map_or_else(
+                    || {
+                        format!(
+                            "{} · {}",
+                            tr("Current terminal", "当前终端"),
+                            self.cli_config.agent
+                        )
+                    },
+                    |session| {
+                        format!(
+                            "{} {}",
+                            session.agent,
+                            tr("terminal connected", "终端已连接")
+                        )
+                    },
+                );
+                if self.pending_sprite_sheet_export_path.is_some() {
+                    self.refresh_sprite_sheet_export_estimate();
+                } else {
+                    self.sprite_sheet_export_estimate =
+                        Err(tr("No export path selected", "尚未选择导出路径").to_string());
+                }
                 Ok(Task::none())
             }
             Message::CopyMcpEndpoint => {
@@ -126,7 +167,11 @@ impl Gridvana {
                 .terminal_webview
                 .create_task(window_id, Message::TerminalWebViewReady)),
             Message::TerminalHostWindow(None) => {
-                self.cli_status = "无法获取 Gridvana 窗口，Web 终端未启动".to_string();
+                self.cli_status = tr(
+                    "Could not access the Gridvana window; the web terminal did not start",
+                    "无法获取 Gridvana 窗口，Web 终端未启动",
+                )
+                .to_string();
                 Ok(Task::none())
             }
             Message::TerminalWebViewReady(Ok(())) => {
@@ -136,7 +181,10 @@ impl Gridvana {
                 Ok(Task::none())
             }
             Message::TerminalWebViewReady(Err(error)) => {
-                self.cli_status = format!("Web 终端启动失败：{error}");
+                self.cli_status = format!(
+                    "{}: {error}",
+                    tr("Web terminal failed to start", "Web 终端启动失败")
+                );
                 Ok(Task::none())
             }
             Message::TerminalWebViewIpc(message) => {
@@ -157,18 +205,24 @@ impl Gridvana {
         }
         let command = self.cli_config_draft.selected_command().trim().to_string();
         if command.is_empty() {
-            self.cli_status = "CLI 命令不能为空".to_string();
+            self.cli_status = tr("CLI command cannot be empty", "CLI 命令不能为空").to_string();
             return Ok(Task::none());
         }
         self.cli_test_in_flight = true;
-        self.cli_status = format!("正在检测 {}...", self.cli_config_draft.agent);
+        self.cli_status = format!(
+            "{} {}…",
+            tr("Testing", "正在检测"),
+            self.cli_config_draft.agent
+        );
         Ok(Task::perform(
             async move {
                 std::process::Command::new(&command)
                     .arg("--version")
                     .envs(cli_environment())
                     .output()
-                    .map_err(|error| format!("无法运行 {command}：{error}"))
+                    .map_err(|error| {
+                        format!("{} {command}: {error}", tr("Could not run", "无法运行"))
+                    })
                     .and_then(|output| {
                         let text = if output.stdout.is_empty() {
                             String::from_utf8_lossy(&output.stderr).trim().to_string()
@@ -177,12 +231,18 @@ impl Gridvana {
                         };
                         if output.status.success() {
                             Ok(if text.is_empty() {
-                                "CLI 连接成功".to_string()
+                                tr("CLI connection succeeded", "CLI 连接成功").to_string()
                             } else {
-                                format!("CLI 连接成功 · {text}")
+                                format!(
+                                    "{} · {text}",
+                                    tr("CLI connection succeeded", "CLI 连接成功")
+                                )
                             })
                         } else {
-                            Err(format!("CLI 检测失败 · {text}"))
+                            Err(format!(
+                                "{} · {text}",
+                                tr("CLI test failed", "CLI 检测失败")
+                            ))
                         }
                     })
             },
@@ -201,13 +261,21 @@ impl Gridvana {
             .as_ref()
             .map(|service| service.endpoint().to_string())
         else {
-            self.cli_status = "MCP 服务未启动，无法连接 CLI".to_string();
+            self.cli_status = tr(
+                "The MCP service is not running, so the CLI cannot connect",
+                "MCP 服务未启动，无法连接 CLI",
+            )
+            .to_string();
             return Task::none();
         };
         let working_directory = std::env::current_dir().unwrap_or_else(|_| ".".into());
         match TerminalSession::start(&self.cli_config, &endpoint, working_directory) {
             Ok(session) => {
-                self.cli_status = format!("{} 终端已连接", session.agent);
+                self.cli_status = format!(
+                    "{} {}",
+                    session.agent,
+                    tr("terminal connected", "终端已连接")
+                );
                 if let Some((cols, rows)) = self.terminal_size
                     && let Err(error) = session.resize(cols, rows)
                 {
@@ -289,7 +357,7 @@ impl Gridvana {
             if self.inspector_panel == InspectorPanel::AiAgent && !self.ai_agent_panel_available() {
                 self.inspector_panel = InspectorPanel::Layers;
             }
-            self.cli_status = format!("{agent} 终端已退出 · {status}");
+            self.cli_status = format!("{agent} {} · {status}", tr("terminal exited", "终端已退出"));
         }
     }
 
@@ -345,9 +413,16 @@ impl Gridvana {
                     self.sync_terminal_webview_visibility();
                 }
                 self.cli_status = if self.terminal_session.is_some() {
-                    "CLI 配置已保存；请在终端内退出，重新启动后生效".to_string()
+                    tr(
+                        "CLI configuration saved; exit the terminal and restart it to apply the changes",
+                        "CLI 配置已保存；请在终端内退出，重新启动后生效",
+                    ).to_string()
                 } else {
-                    format!("CLI 配置已保存 · {}", self.cli_config.agent)
+                    format!(
+                        "{} · {}",
+                        tr("CLI configuration saved", "CLI 配置已保存"),
+                        self.cli_config.agent
+                    )
                 };
             }
             Err(error) => {
@@ -362,7 +437,10 @@ impl Gridvana {
         if let Some(service) = self.mcp_service.as_ref()
             && let Err(error) = service.reset_edit_session()
         {
-            self.mcp_status = format!("MCP 会话清理失败 · {error}");
+            self.mcp_status = format!(
+                "{} · {error}",
+                tr("MCP session cleanup failed", "MCP 会话清理失败")
+            );
         }
     }
 }

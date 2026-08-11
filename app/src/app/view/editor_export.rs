@@ -4,6 +4,7 @@ use super::super::ui::{
     TEXT_PRIMARY, TEXT_SECONDARY, compact_action_button_style, panel_style, pick_list_menu_style,
     pick_list_style,
 };
+use crate::i18n::tr;
 use crate::types::{
     Message, SpriteFrameRangeChoice, SpriteLayerRangeChoice, SpriteLayoutChoice,
     SpriteMetadataChoice, SpriteTrimChoice,
@@ -34,14 +35,16 @@ impl Gridvana {
             .project
             .active_tag_id
             .and_then(|id| self.project.tag(id));
-        let active_tag_name = active_tag.map_or("无活动标签", |tag| tag.name.as_str());
+        let active_tag_name = active_tag.map_or(tr("No active tag", "无活动标签"), |tag| {
+            tag.name.as_str()
+        });
 
         let path_label = self
             .pending_sprite_sheet_export_path
             .as_ref()
             .and_then(|path| path.parent())
             .map(|directory| directory.display().to_string())
-            .unwrap_or_else(|| "选择输出目录…".to_string());
+            .unwrap_or_else(|| tr("Choose output directory…", "选择输出目录…").to_string());
         let target_path = widget::button(
             widget::container(
                 widget::text(path_label)
@@ -62,33 +65,33 @@ impl Gridvana {
         .style(|theme: &Theme, status| compact_action_button_style(theme, status, false));
 
         let mut settings = widget::column![
-            field_row("目录", target_path.into()),
+            field_row(tr("Directory", "目录"), target_path.into()),
             choice_field(
-                "帧范围",
+                tr("Frame range", "帧范围"),
                 SpriteFrameRangeChoice::ALL,
                 form.frame_range,
                 Message::SelectSpriteFrameRange,
             ),
             choice_field(
-                "图层",
+                tr("Layers", "图层"),
                 SpriteLayerRangeChoice::ALL,
                 form.layer_range,
                 Message::SelectSpriteLayerRange,
             ),
             choice_field(
-                "布局",
+                tr("Layout", "布局"),
                 SpriteLayoutChoice::ALL,
                 form.layout,
                 Message::SelectSpriteLayout,
             ),
             choice_field(
-                "倍率",
+                tr("Scale", "倍率"),
                 ScaleChoice::ALL,
                 ScaleChoice(form.scale),
                 |choice: ScaleChoice| Message::SetSpriteScale(choice.0),
             ),
             choice_field(
-                "元数据",
+                tr("Metadata", "元数据"),
                 SpriteMetadataChoice::ALL,
                 form.metadata,
                 Message::SelectSpriteMetadata,
@@ -102,9 +105,9 @@ impl Gridvana {
         ) {
             settings = settings.push(field_row(
                 if form.layout == SpriteLayoutChoice::FixedColumns {
-                    "列数"
+                    tr("Columns", "列数")
                 } else {
-                    "行数"
+                    tr("Rows", "行数")
                 },
                 widget::row![
                     widget::slider(1..=16, form.fixed_count, Message::SetSpriteFixedCount)
@@ -140,12 +143,15 @@ impl Gridvana {
 
         let (png_name, json_name) = export_file_names(self);
         let estimate = match &self.sprite_sheet_export_estimate {
-            Ok((width, height)) => format!("{frame_count} 帧 · {width} × {height} px"),
-            Err(error) => format!("无法预览：{error}"),
+            Ok((width, height)) => format!(
+                "{frame_count} {} · {width} × {height} px",
+                tr("frames", "帧")
+            ),
+            Err(error) => format!("{}: {error}", tr("Preview unavailable", "无法预览")),
         };
-        let direction = active_tag.map_or("正向", |tag| match tag.direction {
-            TagDirection::Forward => "正向",
-            TagDirection::Reverse => "反向",
+        let direction = active_tag.map_or(tr("Forward", "正向"), |tag| match tag.direction {
+            TagDirection::Forward => tr("Forward", "正向"),
+            TagDirection::Reverse => tr("Reverse", "反向"),
             TagDirection::PingPong => "Ping-Pong",
         });
         let preview_metadata = widget::container(
@@ -153,9 +159,12 @@ impl Gridvana {
                 widget::text(format!("{png_name} · {json_name}"))
                     .size(9)
                     .color(TEXT_SECONDARY),
-                widget::text(format!("{estimate} · 标签 {active_tag_name} · {direction}"))
-                    .size(9)
-                    .color(TEXT_MUTED),
+                widget::text(format!(
+                    "{estimate} · {} {active_tag_name} · {direction}",
+                    tr("Tag", "标签")
+                ))
+                .size(9)
+                .color(TEXT_MUTED),
             ]
             .spacing(3),
         )
@@ -175,7 +184,7 @@ impl Gridvana {
         let preview_body = widget::column![
             widget::row![
                 widget::checkbox(trim_enabled)
-                    .label("裁切透明边缘")
+                    .label(tr("Trim transparent edges", "裁切透明边缘"))
                     .size(13)
                     .text_size(10)
                     .on_toggle(Message::SetSpriteTrimPerFrame),
@@ -203,9 +212,9 @@ impl Gridvana {
         let export_button = widget::button(
             widget::container(
                 widget::text(if can_export {
-                    "导出 PNG + JSON"
+                    tr("Export PNG + JSON", "导出 PNG + JSON")
                 } else {
-                    "选择输出目录"
+                    tr("Choose output directory", "选择输出目录")
                 })
                 .size(11),
             )
@@ -218,7 +227,7 @@ impl Gridvana {
         .style(|theme: &Theme, status| compact_action_button_style(theme, status, true));
 
         let gif_button = widget::button(
-            widget::container(widget::text("导出 GIF 动画").size(10))
+            widget::container(widget::text(tr("Export animated GIF", "导出 GIF 动画")).size(10))
                 .width(Length::Fill)
                 .align_x(iced::Alignment::Center),
         )
@@ -228,7 +237,7 @@ impl Gridvana {
         .style(|theme: &Theme, status| compact_action_button_style(theme, status, false));
 
         let png_sequence_button = widget::button(
-            widget::container(widget::text("导出逐帧 PNG").size(10))
+            widget::container(widget::text(tr("Export PNG sequence", "导出逐帧 PNG")).size(10))
                 .width(Length::Fill)
                 .align_x(iced::Alignment::Center),
         )
@@ -254,8 +263,8 @@ impl Gridvana {
             widget::container(settings).padding(iced::Padding::new(10.0).top(0)),
             widget::rule::horizontal(1),
             section_heading(
-                "预览",
-                widget::text(format!("{frame_count} 帧"))
+                tr("Preview", "预览"),
+                widget::text(format!("{frame_count} {}", tr("frames", "帧")))
                     .size(9)
                     .color(TEXT_MUTED)
                     .into(),

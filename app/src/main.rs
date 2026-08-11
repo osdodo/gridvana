@@ -3,6 +3,7 @@ mod branding;
 mod canvas;
 mod cli_terminal;
 mod color_wheel;
+mod i18n;
 mod icons;
 mod mcp;
 mod types;

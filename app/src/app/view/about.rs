@@ -4,6 +4,7 @@ use super::super::ui::{
     SURFACE_BACKGROUND, TEXT_MUTED, TEXT_PRIMARY, TEXT_SECONDARY, compact_action_button_style,
 };
 use crate::branding;
+use crate::i18n::tr;
 use crate::icons::{Icon, icon_button};
 use crate::types::Message;
 use iced::{Border, Color, Element, Length, Shadow, Size, Theme, Vector, widget};
@@ -58,9 +59,12 @@ impl Gridvana {
             widget::text("Gridvana")
                 .size(if compact { 31 } else { 38 })
                 .color(TEXT_PRIMARY),
-            widget::text("像素艺术与逐帧动画工作台")
-                .size(14)
-                .color(TEXT_SECONDARY),
+            widget::text(tr(
+                "Pixel art and frame-by-frame animation workspace",
+                "像素艺术与逐帧动画工作台",
+            ))
+            .size(14)
+            .color(TEXT_SECONDARY),
             version,
         ]
         .spacing(7)
@@ -85,9 +89,10 @@ impl Gridvana {
         };
 
         let statement = widget::container(
-            widget::text(
+            widget::text(tr(
+                "A focused workspace for pixel artists—from grid drawing, layers, and timelines to production-ready animation assets and AI-assisted workflows.",
                 "为像素创作者打造的专注型工作空间：从网格绘制、图层与时间轴，到可交付的动画资产和 AI 辅助工作流。",
-            )
+            ))
             .size(13)
             .line_height(1.55)
             .color(TEXT_SECONDARY)
@@ -99,17 +104,59 @@ impl Gridvana {
 
         let capabilities: Element<'_, Message> = if compact {
             widget::column![
-                capability("01", "PIXEL STUDIO", "精确的网格绘制、选区与图层控制"),
-                capability("02", "ANIMATION", "时间轴、洋葱皮与专业资产导出"),
-                capability("03", "AGENT WORKFLOW", "内置终端与 MCP 画布协作能力"),
+                capability(
+                    "01",
+                    "PIXEL STUDIO",
+                    tr(
+                        "Precise grid drawing, selections, and layer control",
+                        "精确的网格绘制、选区与图层控制"
+                    )
+                ),
+                capability(
+                    "02",
+                    "ANIMATION",
+                    tr(
+                        "Timeline, onion skinning, and production asset export",
+                        "时间轴、洋葱皮与专业资产导出"
+                    )
+                ),
+                capability(
+                    "03",
+                    "AGENT WORKFLOW",
+                    tr(
+                        "Built-in terminal and MCP canvas collaboration",
+                        "内置终端与 MCP 画布协作能力"
+                    )
+                ),
             ]
             .spacing(8)
             .into()
         } else {
             widget::row![
-                capability("01", "PIXEL STUDIO", "精确的网格绘制、选区与图层控制"),
-                capability("02", "ANIMATION", "时间轴、洋葱皮与专业资产导出"),
-                capability("03", "AGENT WORKFLOW", "内置终端与 MCP 画布协作能力"),
+                capability(
+                    "01",
+                    "PIXEL STUDIO",
+                    tr(
+                        "Precise grid drawing, selections, and layer control",
+                        "精确的网格绘制、选区与图层控制"
+                    )
+                ),
+                capability(
+                    "02",
+                    "ANIMATION",
+                    tr(
+                        "Timeline, onion skinning, and production asset export",
+                        "时间轴、洋葱皮与专业资产导出"
+                    )
+                ),
+                capability(
+                    "03",
+                    "AGENT WORKFLOW",
+                    tr(
+                        "Built-in terminal and MCP canvas collaboration",
+                        "内置终端与 MCP 画布协作能力"
+                    )
+                ),
             ]
             .spacing(8)
             .into()
@@ -221,7 +268,7 @@ fn capability<'a>(
 }
 
 fn done_button<'a>() -> Element<'a, Message> {
-    widget::button(widget::text("完成").size(11))
+    widget::button(widget::text(tr("Done", "完成")).size(11))
         .on_press(Message::CloseAbout)
         .padding([8, 22])
         .style(|theme: &Theme, status| compact_action_button_style(theme, status, true))

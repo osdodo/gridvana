@@ -1,3 +1,4 @@
+use crate::i18n::tr;
 use crate::types::Message;
 
 #[cfg(target_os = "macos")]
@@ -15,6 +16,8 @@ pub(super) struct NativeMenuState {
     #[cfg(target_os = "macos")]
     window_menu: Submenu,
     #[cfg(target_os = "macos")]
+    edit_menu: Submenu,
+    #[cfg(target_os = "macos")]
     installed: Cell<bool>,
     #[cfg(target_os = "macos")]
     new_project_id: MenuId,
@@ -30,6 +33,20 @@ pub(super) struct NativeMenuState {
     settings_id: MenuId,
     #[cfg(target_os = "macos")]
     about_id: MenuId,
+    #[cfg(target_os = "macos")]
+    new_project_item: MenuItem,
+    #[cfg(target_os = "macos")]
+    open_project_item: MenuItem,
+    #[cfg(target_os = "macos")]
+    undo_item: MenuItem,
+    #[cfg(target_os = "macos")]
+    redo_item: MenuItem,
+    #[cfg(target_os = "macos")]
+    save_project_item: MenuItem,
+    #[cfg(target_os = "macos")]
+    settings_item: MenuItem,
+    #[cfg(target_os = "macos")]
+    about_item: MenuItem,
 }
 
 impl NativeMenuState {
@@ -39,43 +56,48 @@ impl NativeMenuState {
             let menu = Menu::new();
 
             let app_menu = Submenu::new("Gridvana", true);
-            let edit_menu = Submenu::new("编辑", true);
-            let window_menu = Submenu::new("窗口", true);
+            let edit_menu = Submenu::new(tr("Edit", "编辑"), true);
+            let window_menu = Submenu::new(tr("Window", "窗口"), true);
 
             let new_project = MenuItem::with_id(
                 "gridvana.file.new",
-                "创建画布",
+                tr("New Canvas", "创建画布"),
                 true,
                 Some(Accelerator::new(Some(Modifiers::SUPER), Code::KeyN)),
             );
             let open_project = MenuItem::with_id(
                 "gridvana.file.open",
-                "打开",
+                tr("Open…", "打开…"),
                 true,
                 Some(Accelerator::new(Some(Modifiers::SUPER), Code::KeyO)),
             );
             let save_project = MenuItem::with_id(
                 "gridvana.file.save",
-                "保存",
+                tr("Save", "保存"),
                 true,
                 Some(Accelerator::new(Some(Modifiers::SUPER), Code::KeyS)),
             );
             let settings = MenuItem::with_id(
                 "gridvana.settings",
-                "设置...",
+                tr("Settings…", "设置…"),
                 true,
                 Some(Accelerator::new(Some(Modifiers::SUPER), Code::Comma)),
             );
-            let about = MenuItem::with_id("gridvana.about", "关于 Gridvana", true, None);
+            let about = MenuItem::with_id(
+                "gridvana.about",
+                tr("About Gridvana", "关于 Gridvana"),
+                true,
+                None,
+            );
             let undo = MenuItem::with_id(
                 "gridvana.edit.undo",
-                "撤销",
+                tr("Undo", "撤销"),
                 true,
                 Some(Accelerator::new(Some(Modifiers::SUPER), Code::KeyZ)),
             );
             let redo = MenuItem::with_id(
                 "gridvana.edit.redo",
-                "重做",
+                tr("Redo", "重做"),
                 true,
                 Some(Accelerator::new(
                     Some(Modifiers::SUPER | Modifiers::SHIFT),
@@ -128,6 +150,7 @@ impl NativeMenuState {
             Self {
                 menu,
                 window_menu,
+                edit_menu,
                 installed: Cell::new(false),
                 new_project_id: new_project.id().clone(),
                 open_project_id: open_project.id().clone(),
@@ -136,6 +159,13 @@ impl NativeMenuState {
                 save_project_id: save_project.id().clone(),
                 settings_id: settings.id().clone(),
                 about_id: about.id().clone(),
+                new_project_item: new_project,
+                open_project_item: open_project,
+                undo_item: undo,
+                redo_item: redo,
+                save_project_item: save_project,
+                settings_item: settings,
+                about_item: about,
             }
         }
 
@@ -174,6 +204,22 @@ impl NativeMenuState {
         #[cfg(not(target_os = "macos"))]
         {
             None
+        }
+    }
+
+    pub(super) fn set_language(&self) {
+        #[cfg(target_os = "macos")]
+        {
+            self.edit_menu.set_text(tr("Edit", "编辑"));
+            self.window_menu.set_text(tr("Window", "窗口"));
+            self.new_project_item.set_text(tr("New Canvas", "创建画布"));
+            self.open_project_item.set_text(tr("Open…", "打开…"));
+            self.save_project_item.set_text(tr("Save", "保存"));
+            self.settings_item.set_text(tr("Settings…", "设置…"));
+            self.about_item
+                .set_text(tr("About Gridvana", "关于 Gridvana"));
+            self.undo_item.set_text(tr("Undo", "撤销"));
+            self.redo_item.set_text(tr("Redo", "重做"));
         }
     }
 
