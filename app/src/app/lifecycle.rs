@@ -81,6 +81,7 @@ impl Gridvana {
                 cli_config,
                 cli_config_draft,
                 cli_status,
+                cli_save_error: None,
                 cli_test_in_flight: false,
                 mcp_copy_feedback: None,
                 inspector_panel: InspectorPanel::Layers,

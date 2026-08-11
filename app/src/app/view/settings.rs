@@ -164,6 +164,16 @@ impl Gridvana {
 
     fn settings_agent_section(&self) -> Element<'_, Message> {
         let draft = &self.cli_config_draft;
+        let visibility_rows = vec![setting_row(
+            "启用 AI Agent 面板",
+            Some("即使尚未自定义 Agent 配置，也在检查器中显示该面板"),
+            widget::row![
+                widget::Space::new().width(Length::Fill),
+                widget::toggler(draft.ai_panel_enabled).on_toggle(Message::SetAiPanelEnabled),
+            ]
+            .align_y(iced::Alignment::Center)
+            .into(),
+        )];
         let agent_choice = widget::row![
             agent_option(CliAgent::Codex, draft.agent),
             agent_option(CliAgent::Claude, draft.agent),
@@ -277,6 +287,7 @@ impl Gridvana {
         };
 
         widget::column![
+            group("界面", visibility_rows),
             group("代理配置", rows),
             group("权限", permission_rows),
             widget::column![
@@ -371,7 +382,15 @@ impl Gridvana {
 
     fn settings_footer(&self) -> Element<'_, Message> {
         let dirty = self.cli_config_draft != self.cli_config;
-        let status: Element<'_, Message> = if dirty {
+        let status: Element<'_, Message> = if self.settings_section == SettingsSection::Agent
+            && let Some(error) = self.cli_save_error.as_ref()
+        {
+            widget::text(error)
+                .size(10)
+                .color(ACCENT)
+                .wrapping(iced::widget::text::Wrapping::WordOrGlyph)
+                .into()
+        } else if dirty {
             widget::text("有未保存的更改").size(10).color(ACCENT).into()
         } else if self.settings_section == SettingsSection::Mcp
             && let Some(feedback) = self.mcp_copy_feedback
@@ -389,7 +408,11 @@ impl Gridvana {
         } else {
             widget::text(self.cli_status.clone())
                 .size(10)
-                .color(TEXT_MUTED)
+                .color(if self.cli_status.starts_with("CLI 配置已保存") {
+                    SUCCESS
+                } else {
+                    TEXT_MUTED
+                })
                 .wrapping(iced::widget::text::Wrapping::WordOrGlyph)
                 .into()
         };
@@ -406,7 +429,7 @@ impl Gridvana {
                 widget::button(widget::text("保存").size(11).line_height(1.0))
                     .padding([7, 12])
                     .style(|theme: &Theme, status| compact_action_button_style(theme, status, true))
-                    .on_press_maybe(dirty.then_some(Message::SaveCliConfig)),
+                    .on_press(Message::SaveCliConfig),
             ]
             .spacing(8)
             .align_y(iced::Alignment::Center),

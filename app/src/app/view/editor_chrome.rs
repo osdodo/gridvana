@@ -188,7 +188,7 @@ impl Gridvana {
                 .height(Length::Fill)
                 .center(Length::Fill)
         };
-        widget::row![
+        let mut tabs = widget::row![
             widget::button(tab_label("图层"))
                 .on_press(Message::SetInspectorPanel(InspectorPanel::Layers))
                 .width(Length::FillPortion(1))
@@ -199,18 +199,22 @@ impl Gridvana {
                 .width(Length::FillPortion(1))
                 .height(Length::Fixed(34.0))
                 .style(tab_style(self.inspector_panel == InspectorPanel::Export)),
-            widget::button(tab_label("AI Agent"))
-                .on_press(Message::SetInspectorPanel(InspectorPanel::AiAgent))
-                .width(Length::FillPortion(1))
-                .height(Length::Fixed(34.0))
-                .style(tab_style(self.inspector_panel == InspectorPanel::AiAgent)),
         ]
-        .spacing(0)
-        .into()
+        .spacing(0);
+        if self.ai_agent_panel_available() {
+            tabs = tabs.push(
+                widget::button(tab_label("AI Agent"))
+                    .on_press(Message::SetInspectorPanel(InspectorPanel::AiAgent))
+                    .width(Length::FillPortion(1))
+                    .height(Length::Fixed(34.0))
+                    .style(tab_style(self.inspector_panel == InspectorPanel::AiAgent)),
+            );
+        }
+        tabs.into()
     }
 
     pub(super) fn editor_inspector(&self) -> Element<'_, Message> {
-        if self.inspector_panel == InspectorPanel::AiAgent {
+        if self.inspector_panel == InspectorPanel::AiAgent && self.ai_agent_panel_available() {
             return self.editor_ai_agent_inspector();
         }
         if self.inspector_panel == InspectorPanel::Export {

@@ -78,6 +78,7 @@ pub enum Message {
     OpenAbout,
     CloseAbout,
     SelectCliAgent(CliAgent),
+    SetAiPanelEnabled(bool),
     SetCliDefaultAllow(bool),
     UpdateCodexCommand(String),
     UpdateCodexProfile(String),

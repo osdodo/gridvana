@@ -12,6 +12,9 @@ impl Gridvana {
     ) -> Result<Task<Message>, Message> {
         match message {
             Message::SetInspectorPanel(InspectorPanel::AiAgent) => {
+                if !self.ai_agent_panel_available() {
+                    return Ok(Task::none());
+                }
                 self.inspector_panel = InspectorPanel::AiAgent;
                 self.pending_sprite_sheet_export_path = None;
                 if self.terminal_session.is_none() {
@@ -26,6 +29,7 @@ impl Gridvana {
                 self.global_left_button_down = false;
                 self.cli_config_draft = self.cli_config.clone();
                 self.mcp_copy_feedback = None;
+                self.cli_save_error = None;
                 self.cli_settings_open = true;
                 self.sync_terminal_webview_visibility();
                 Ok(Task::none())
@@ -38,6 +42,12 @@ impl Gridvana {
             }
             Message::SelectCliAgent(agent) => {
                 self.cli_config_draft.agent = agent;
+                self.cli_save_error = None;
+                Ok(Task::none())
+            }
+            Message::SetAiPanelEnabled(enabled) => {
+                self.cli_config_draft.ai_panel_enabled = enabled;
+                self.cli_save_error = None;
                 Ok(Task::none())
             }
             Message::SelectSettingsSection(section) => {
@@ -68,30 +78,37 @@ impl Gridvana {
             }
             Message::SetCliDefaultAllow(default_allow) => {
                 self.cli_config_draft.default_allow = default_allow;
+                self.cli_save_error = None;
                 Ok(Task::none())
             }
             Message::UpdateCodexCommand(value) => {
                 self.cli_config_draft.codex.command = value;
+                self.cli_save_error = None;
                 Ok(Task::none())
             }
             Message::UpdateCodexProfile(value) => {
                 self.cli_config_draft.codex.profile = value;
+                self.cli_save_error = None;
                 Ok(Task::none())
             }
             Message::UpdateCodexModel(value) => {
                 self.cli_config_draft.codex.model = value;
+                self.cli_save_error = None;
                 Ok(Task::none())
             }
             Message::UpdateClaudeCommand(value) => {
                 self.cli_config_draft.claude.command = value;
+                self.cli_save_error = None;
                 Ok(Task::none())
             }
             Message::UpdateClaudeModel(value) => {
                 self.cli_config_draft.claude.model = value;
+                self.cli_save_error = None;
                 Ok(Task::none())
             }
             Message::UpdateClaudeEffort(value) => {
                 self.cli_config_draft.claude.effort = value;
+                self.cli_save_error = None;
                 Ok(Task::none())
             }
             Message::SaveCliConfig => {
@@ -269,6 +286,9 @@ impl Gridvana {
             self.terminal_session = None;
             self.terminal_webview.set_visible(false);
             self.reset_agent_edit_session();
+            if self.inspector_panel == InspectorPanel::AiAgent && !self.ai_agent_panel_available() {
+                self.inspector_panel = InspectorPanel::Layers;
+            }
             self.cli_status = format!("{agent} 终端已退出 · {status}");
         }
     }
@@ -312,16 +332,28 @@ impl Gridvana {
     }
 
     fn save_cli_config(&mut self) {
-        match self.cli_config_draft.save() {
+        let config = self.cli_config_draft.clone();
+        match config.save() {
             Ok(()) => {
-                self.cli_config = self.cli_config_draft.clone();
+                self.cli_config = config.clone();
+                self.cli_config_draft = config;
+                self.cli_save_error = None;
+                if self.inspector_panel == InspectorPanel::AiAgent
+                    && !self.ai_agent_panel_available()
+                {
+                    self.inspector_panel = InspectorPanel::Layers;
+                    self.sync_terminal_webview_visibility();
+                }
                 self.cli_status = if self.terminal_session.is_some() {
                     "CLI 配置已保存；请在终端内退出，重新启动后生效".to_string()
                 } else {
                     format!("CLI 配置已保存 · {}", self.cli_config.agent)
                 };
             }
-            Err(error) => self.cli_status = error,
+            Err(error) => {
+                self.cli_status = error.clone();
+                self.cli_save_error = Some(error);
+            }
         }
     }
 

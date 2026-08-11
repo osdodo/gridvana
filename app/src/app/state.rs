@@ -190,6 +190,7 @@ pub struct Gridvana {
     pub(super) cli_config: CliConfig,
     pub(super) cli_config_draft: CliConfig,
     pub(super) cli_status: String,
+    pub(super) cli_save_error: Option<String>,
     pub(super) cli_test_in_flight: bool,
     pub(super) mcp_copy_feedback: Option<McpCopyFeedback>,
     pub(super) inspector_panel: InspectorPanel,
@@ -252,8 +253,12 @@ pub struct Gridvana {
 }
 
 impl Gridvana {
+    pub(super) fn ai_agent_panel_available(&self) -> bool {
+        self.cli_config.should_show_ai_panel()
+    }
+
     pub(super) fn active_inspector_width(&self) -> f32 {
-        if self.inspector_panel == InspectorPanel::AiAgent {
+        if self.inspector_panel == InspectorPanel::AiAgent && self.ai_agent_panel_available() {
             self.ai_inspector_width
         } else {
             self.inspector_width

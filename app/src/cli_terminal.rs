@@ -96,6 +96,8 @@ fn default_claude_effort() -> String {
 pub struct CliConfig {
     pub agent: CliAgent,
     #[serde(default)]
+    pub ai_panel_enabled: bool,
+    #[serde(default)]
     pub default_allow: bool,
     #[serde(default)]
     pub codex: CodexCliConfig,
@@ -107,6 +109,7 @@ impl Default for CliConfig {
     fn default() -> Self {
         Self {
             agent: CliAgent::Codex,
+            ai_panel_enabled: false,
             default_allow: false,
             codex: CodexCliConfig::default(),
             claude: ClaudeCliConfig::default(),
@@ -128,6 +131,10 @@ impl CliConfig {
             CliAgent::Codex => &self.codex.command,
             CliAgent::Claude => &self.claude.command,
         }
+    }
+
+    pub fn should_show_ai_panel(&self) -> bool {
+        self.ai_panel_enabled
     }
 
     fn validate(&self) -> Result<(), String> {
@@ -662,6 +669,7 @@ mod tests {
         let path = root.join("cli.json");
         let mut config = CliConfig {
             agent: CliAgent::Claude,
+            ai_panel_enabled: true,
             ..CliConfig::default()
         };
         config.claude.command = "/usr/local/bin/claude".to_string();
@@ -673,6 +681,51 @@ mod tests {
 
         let _ = std::fs::remove_file(path);
         let _ = std::fs::remove_dir(root);
+    }
+
+    #[test]
+    fn ai_panel_is_hidden_for_the_untouched_default_config() {
+        assert!(!CliConfig::default().should_show_ai_panel());
+    }
+
+    #[test]
+    fn ai_panel_is_shown_when_explicitly_enabled() {
+        let config = CliConfig {
+            ai_panel_enabled: true,
+            ..CliConfig::default()
+        };
+
+        assert!(config.should_show_ai_panel());
+    }
+
+    #[test]
+    fn ai_panel_stays_hidden_when_only_an_agent_is_configured() {
+        let mut config = CliConfig::default();
+        config.codex.model = "gpt-5".to_string();
+
+        assert!(!config.should_show_ai_panel());
+
+        let config = CliConfig {
+            agent: CliAgent::Claude,
+            ..CliConfig::default()
+        };
+        assert!(!config.should_show_ai_panel());
+    }
+
+    #[test]
+    fn legacy_cli_config_defaults_to_ai_panel_disabled() {
+        let config: CliConfig = serde_json::from_str(
+            r#"{
+                "agent": "codex",
+                "default_allow": false,
+                "codex": { "command": "codex", "profile": "", "model": "" },
+                "claude": { "command": "claude", "model": "", "effort": "default" }
+            }"#,
+        )
+        .unwrap();
+
+        assert!(!config.ai_panel_enabled);
+        assert!(!config.should_show_ai_panel());
     }
 
     #[test]
