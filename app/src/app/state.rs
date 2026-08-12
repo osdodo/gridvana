@@ -5,7 +5,7 @@ use crate::i18n::{AppPreferences, Language};
 use crate::types::{
     ColorSlot, InspectorPanel, SelectionCombineMode, SettingsSection, SpriteEmptyChoice,
     SpriteFrameRangeChoice, SpriteLayerRangeChoice, SpriteLayoutChoice, SpriteMetadataChoice,
-    SpriteTrimChoice, Tool, TransformTargetChoice,
+    SpriteTrimChoice, Tool,
 };
 use gridvana_core::grid::GridIndex;
 use gridvana_core::history::History;
@@ -80,6 +80,7 @@ pub(super) struct SelectionMoveDraft {
 pub(super) struct SelectionBoxDraft {
     pub(super) start: GridIndex,
     pub(super) current: GridIndex,
+    pub(super) combine_mode: SelectionCombineMode,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -103,6 +104,15 @@ pub(super) struct SelectionClipboard {
     pub(super) source_frame_id: FrameId,
     pub(super) selected_offsets: Vec<(i32, i32)>,
     pub(super) pixels: Vec<ClipboardPixel>,
+}
+
+/// Pasted content that hovers above the cel until it is committed, so moving
+/// or transforming it never disturbs the pixels underneath.
+#[derive(Debug, Clone)]
+pub(super) struct FloatingSelection {
+    pub(super) pixels: HashMap<GridIndex, Rgba>,
+    pub(super) layer_id: LayerId,
+    pub(super) frame_id: FrameId,
 }
 
 #[derive(Debug, Clone)]
@@ -220,6 +230,7 @@ pub struct Gridvana {
     pub(super) timeline_selection_anchor: Option<CelPosition>,
     pub(super) timeline_cel_clipboard: Option<TimelineCelClipboard>,
     pub(super) cel_context_menu: Option<CelPosition>,
+    pub(super) selection_context_menu: Option<Point>,
     pub(super) app_menu_open: bool,
     pub(super) current_stroke: Option<StrokeBuilder>,
     pub(super) current_shape: Option<ShapeDraft>,
@@ -241,17 +252,16 @@ pub struct Gridvana {
     pub(super) global_left_button_down: bool,
     pub(super) space_pressed: bool,
     pub(super) shift_pressed: bool,
+    pub(super) alt_pressed: bool,
     pub(super) zoom_modifier_pressed: bool,
     pub(super) hovered_grid_index: Option<GridIndex>,
     pub(super) move_mode_active: bool,
     pub(super) selection_indices: HashSet<GridIndex>,
-    pub(super) selection_combine_mode: SelectionCombineMode,
     pub(super) selection_box_draft: Option<SelectionBoxDraft>,
     pub(super) selection_move_draft: Option<SelectionMoveDraft>,
     pub(super) selection_clipboard: Option<SelectionClipboard>,
+    pub(super) floating_selection: Option<FloatingSelection>,
     pub(super) paste_offset: GridIndex,
-    pub(super) transform_target: TransformTargetChoice,
-    pub(super) transform_scale: u8,
     pub(super) resize_canvas_width: String,
     pub(super) resize_canvas_height: String,
 }

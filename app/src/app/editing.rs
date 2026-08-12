@@ -4,11 +4,11 @@ use super::geometry::{
     rectangle_shape_indices, same_color_indices, selection_pixels_in_box, tool_size_display,
 };
 use super::{
-    ClipboardPixel, Gridvana, MAX_RECENT_COLORS, SelectionBoxDraft, SelectionClipboard, ShapeDraft,
-    ShapeKind, StrokeBuilder, StrokeKind,
+    ClipboardPixel, FloatingSelection, Gridvana, MAX_RECENT_COLORS, SelectionBoxDraft,
+    SelectionClipboard, ShapeDraft, ShapeKind, StrokeBuilder, StrokeKind,
 };
 use crate::i18n::tr;
-use crate::types::{ColorSlot, SelectionCombineMode, Tool, TransformTargetChoice};
+use crate::types::{ColorSlot, SelectionCombineMode, Tool};
 use gridvana_core::commands::ReplaceProjectCommand;
 use gridvana_core::commands::{StrokeCommand, StrokePixel};
 use gridvana_core::document::{DocumentOp, DocumentPixel, apply_document_ops};
@@ -276,15 +276,18 @@ impl Gridvana {
         self.selection_box_draft = Some(SelectionBoxDraft {
             start: index,
             current: index,
+            combine_mode: self.selection_combine_mode(),
         });
     }
 
     pub(super) fn select_magic_wand(&mut self, index: GridIndex) {
-        self.combine_pixel_selection(magic_wand_indices(&self.project, index));
+        let mode = self.selection_combine_mode();
+        self.combine_pixel_selection(magic_wand_indices(&self.project, index), mode);
     }
 
     pub(super) fn select_same_color(&mut self, index: GridIndex) {
-        self.combine_pixel_selection(same_color_indices(&self.project, index));
+        let mode = self.selection_combine_mode();
+        self.combine_pixel_selection(same_color_indices(&self.project, index), mode);
     }
 
     pub(super) fn active_color(&self) -> Rgba {
@@ -516,34 +519,59 @@ impl Gridvana {
             .unwrap_or_default()
     }
 
+    /// Drops all selection state, including any uncommitted float. Use this
+    /// when the document changed underneath the selection; for a user-driven
+    /// deselect use [`Self::deselect`], which keeps the pasted pixels.
     pub(super) fn clear_selection_state(&mut self) {
+        self.floating_selection = None;
         self.selection_indices.clear();
         self.selection_box_draft = None;
         self.selection_move_draft = None;
+        self.selection_context_menu = None;
         self.move_mode_active = false;
     }
 
-    fn combined_pixel_selection(&self, candidate: HashSet<GridIndex>) -> HashSet<GridIndex> {
-        combine_selection(
-            &self.selection_indices,
-            candidate,
-            self.selection_combine_mode,
-        )
+    /// Deselecting commits any float, matching Aseprite: the pixels stay where
+    /// the user left them and a single undo reverts the whole paste.
+    pub(super) fn deselect(&mut self) {
+        self.commit_floating_selection();
+        self.clear_selection_state();
     }
 
-    pub(super) fn combine_pixel_selection(&mut self, candidate: HashSet<GridIndex>) {
-        self.selection_indices = self.combined_pixel_selection(candidate);
-        self.move_mode_active = self.selection_tool_active()
-            && self.selection_combine_mode == SelectionCombineMode::Replace
+    /// Selection combining follows the held modifiers: Shift adds, Alt
+    /// subtracts, and no modifier replaces the current selection.
+    pub(super) fn selection_combine_mode(&self) -> SelectionCombineMode {
+        match (self.shift_pressed, self.alt_pressed) {
+            (true, true) => SelectionCombineMode::Intersect,
+            (true, false) => SelectionCombineMode::Add,
+            (false, true) => SelectionCombineMode::Subtract,
+            (false, false) => SelectionCombineMode::Replace,
+        }
+    }
+
+    fn combined_pixel_selection(
+        &self,
+        candidate: HashSet<GridIndex>,
+        mode: SelectionCombineMode,
+    ) -> HashSet<GridIndex> {
+        combine_selection(&self.selection_indices, candidate, mode)
+    }
+
+    pub(super) fn combine_pixel_selection(
+        &mut self,
+        candidate: HashSet<GridIndex>,
+        mode: SelectionCombineMode,
+    ) {
+        self.selection_indices = self.combined_pixel_selection(candidate, mode);
+        self.move_mode_active = mode == SelectionCombineMode::Replace
+            && self.selection_tool_active()
             && !self.selection_indices.is_empty();
         self.selection_move_draft = None;
     }
 
     pub(super) fn select_all_pixels(&mut self) {
         self.selection_indices = self.project.canvas_grid_indices().into_iter().collect();
-        self.move_mode_active = self.selection_tool_active()
-            && self.selection_combine_mode == SelectionCombineMode::Replace
-            && !self.selection_indices.is_empty();
+        self.move_mode_active = self.selection_tool_active() && !self.selection_indices.is_empty();
     }
 
     pub(super) fn invert_pixel_selection(&mut self) {
@@ -553,16 +581,46 @@ impl Gridvana {
             .into_iter()
             .filter(|index| !self.selection_indices.contains(index))
             .collect();
-        self.move_mode_active = self.selection_tool_active()
-            && self.selection_combine_mode == SelectionCombineMode::Replace
-            && !self.selection_indices.is_empty();
+        self.move_mode_active = self.selection_tool_active() && !self.selection_indices.is_empty();
+    }
+
+    /// Float pixels in their on-screen position, following an in-progress drag
+    /// so the content tracks the marching-ants outline.
+    pub(super) fn floating_selection_display_pixels(&self) -> Vec<(GridIndex, Rgba)> {
+        if !self.floating_selection_matches_active_cel() {
+            return Vec::new();
+        }
+        let Some(floating) = self.floating_selection.as_ref() else {
+            return Vec::new();
+        };
+        let (dx, dy) = match self.selection_move_draft {
+            Some(draft) => (
+                draft.current.x - draft.start.x,
+                draft.current.y - draft.start.y,
+            ),
+            None => (0, 0),
+        };
+        floating
+            .pixels
+            .iter()
+            .map(|(index, color)| {
+                (
+                    GridIndex {
+                        x: index.x + dx,
+                        y: index.y + dy,
+                    },
+                    *color,
+                )
+            })
+            .filter(|(index, _)| self.project.is_index_in_bounds(*index))
+            .collect()
     }
 
     pub(super) fn selection_display_indices(&self) -> Vec<GridIndex> {
         if let Some(draft) = self.selection_box_draft {
             let candidate = selection_pixels_in_box(&self.project, draft.start, draft.current);
             return self
-                .combined_pixel_selection(candidate)
+                .combined_pixel_selection(candidate, draft.combine_mode)
                 .into_iter()
                 .collect();
         }
@@ -590,7 +648,7 @@ impl Gridvana {
         };
 
         let candidate = selection_pixels_in_box(&self.project, draft.start, draft.current);
-        self.combine_pixel_selection(candidate);
+        self.combine_pixel_selection(candidate, draft.combine_mode);
 
         if self.move_mode_active {
             self.copy_selection();
@@ -629,35 +687,16 @@ impl Gridvana {
         !ops.is_empty() && self.apply_document_transaction(ops)
     }
 
+    /// Transforms apply to the timeline selection when the user has one, and
+    /// otherwise to the cel they are actively drawing on.
     pub(super) fn pixel_transform_targets(&self) -> Vec<CelPosition> {
-        let mut targets = match self.transform_target {
-            TransformTargetChoice::CurrentCel => vec![CelPosition {
+        let mut targets: Vec<CelPosition> = if self.timeline_selection.is_empty() {
+            vec![CelPosition {
                 layer_id: self.project.active_layer_id,
                 frame_id: self.project.active_frame_id,
-            }],
-            TransformTargetChoice::SelectedCels => {
-                self.timeline_selection.iter().copied().collect()
-            }
-            TransformTargetChoice::CompositedFrame => self
-                .project
-                .layers
-                .iter()
-                .filter(|layer| layer.kind.supports_cels())
-                .filter(|layer| {
-                    self.project
-                        .layer_is_effectively_visible(layer.id)
-                        .unwrap_or(false)
-                })
-                .filter(|layer| {
-                    self.project
-                        .cel(layer.id, self.project.active_frame_id)
-                        .is_some()
-                })
-                .map(|layer| CelPosition {
-                    layer_id: layer.id,
-                    frame_id: self.project.active_frame_id,
-                })
-                .collect(),
+            }]
+        } else {
+            self.timeline_selection.iter().copied().collect()
         };
         targets.sort_by_key(|target| (target.layer_id, target.frame_id));
         targets.dedup();
@@ -665,32 +704,89 @@ impl Gridvana {
     }
 
     pub(super) fn transform_pixel_selection(&mut self, transform: PixelTransform) {
+        self.transform_pixel_selection_sequence(&[transform]);
+    }
+
+    pub(super) fn transform_pixel_selection_sequence(&mut self, transforms: &[PixelTransform]) {
+        if transforms.is_empty() {
+            return;
+        }
+        if self.floating_selection_matches_active_cel() {
+            self.transform_floating_selection(transforms);
+            return;
+        }
+        self.commit_floating_selection();
         let targets = self.pixel_transform_targets();
         if targets.is_empty() {
             return;
         }
         let mut selection = self.selection_indices.iter().copied().collect::<Vec<_>>();
         selection.sort_by_key(|index| (index.y, index.x));
-        let bounds = PixelBounds::from_indices(selection.iter().copied());
-        if !self.apply_document_transaction(vec![DocumentOp::TransformCelPixels {
-            targets,
-            selection,
-            transform,
-        }]) {
-            return;
+        let mut ops = Vec::with_capacity(transforms.len());
+
+        for &transform in transforms {
+            let Some(bounds) = PixelBounds::from_indices(selection.iter().copied()) else {
+                return;
+            };
+            ops.push(DocumentOp::TransformCelPixels {
+                targets: targets.clone(),
+                selection: selection.clone(),
+                transform,
+            });
+            let Ok(transformed) = transform_indices(selection.iter().copied(), transform, bounds)
+            else {
+                return;
+            };
+            selection = transformed.into_iter().collect();
+            selection.sort_by_key(|index| (index.y, index.x));
         }
-        if let Some(bounds) = bounds
-            && let Ok(transformed) =
-                transform_indices(self.selection_indices.iter().copied(), transform, bounds)
-        {
-            self.selection_indices = transformed
+
+        if self.apply_document_transaction(ops) {
+            self.selection_indices = selection
                 .into_iter()
                 .filter(|index| self.project.is_index_in_bounds(*index))
                 .collect();
         }
-        self.move_mode_active = self.selection_tool_active()
-            && self.selection_combine_mode == SelectionCombineMode::Replace
-            && !self.selection_indices.is_empty();
+        self.move_mode_active = self.selection_tool_active() && !self.selection_indices.is_empty();
+    }
+
+    /// Applies transforms to the float in place. Nothing touches the cel, so
+    /// the pixels the float currently covers stay intact.
+    fn transform_floating_selection(&mut self, transforms: &[PixelTransform]) {
+        let Some(floating) = self.floating_selection.as_ref() else {
+            return;
+        };
+        let mut pixels = floating.pixels.clone();
+        let mut selection = self.selection_indices.iter().copied().collect::<Vec<_>>();
+
+        for &transform in transforms {
+            let Some(bounds) = PixelBounds::from_indices(selection.iter().copied()) else {
+                return;
+            };
+            let mut next_pixels = HashMap::with_capacity(pixels.len());
+            for (index, color) in &pixels {
+                let Ok(destinations) = transform_indices([*index], transform, bounds) else {
+                    return;
+                };
+                for destination in destinations {
+                    next_pixels.insert(destination, *color);
+                }
+            }
+            let Ok(transformed) = transform_indices(selection.iter().copied(), transform, bounds)
+            else {
+                return;
+            };
+            pixels = next_pixels;
+            selection = transformed.into_iter().collect();
+        }
+
+        pixels.retain(|index, _| self.project.is_index_in_bounds(*index));
+        selection.retain(|index| self.project.is_index_in_bounds(*index));
+        if let Some(floating) = self.floating_selection.as_mut() {
+            floating.pixels = pixels;
+        }
+        self.selection_indices = selection.into_iter().collect();
+        self.move_mode_active = self.selection_tool_active() && !self.selection_indices.is_empty();
     }
 
     pub(super) fn move_selection_by(&mut self, dx: i32, dy: i32) {
@@ -720,7 +816,13 @@ impl Gridvana {
             .map(|index| (index.x - anchor.x, index.y - anchor.y))
             .collect::<Vec<_>>();
 
-        let world_pixels = current_cel_world_pixels(&self.project);
+        let mut world_pixels = current_cel_world_pixels(&self.project);
+        // A float sits above the cel, so it wins wherever the two overlap.
+        if self.floating_selection_matches_active_cel()
+            && let Some(floating) = self.floating_selection.as_ref()
+        {
+            world_pixels.extend(floating.pixels.iter().map(|(k, v)| (*k, *v)));
+        }
 
         let mut pixels = Vec::new();
         for index in &self.selection_indices {
@@ -747,6 +849,10 @@ impl Gridvana {
         let Some(clipboard) = self.selection_clipboard.clone() else {
             return;
         };
+        if !self.active_layer_accepts_pixel_edits() {
+            return;
+        }
+        self.commit_floating_selection();
 
         let same_source_cel = clipboard.source_layer_id == self.project.active_layer_id
             && clipboard.source_frame_id == self.project.active_frame_id;
@@ -764,22 +870,16 @@ impl Gridvana {
             }
         };
 
-        let mut paint_pixels = HashMap::new();
+        let mut pixels = HashMap::new();
         for pixel in &clipboard.pixels {
             let target = GridIndex {
                 x: anchor.x + pixel.offset_x,
                 y: anchor.y + pixel.offset_y,
             };
             if self.project.is_index_in_bounds(target) {
-                paint_pixels.insert(target, pixel.color);
+                pixels.insert(target, pixel.color);
             }
         }
-
-        let changes = paint_pixels
-            .iter()
-            .map(|(&index, &color)| (index, Some(color)))
-            .collect::<HashMap<_, _>>();
-        self.apply_selection_changes(&changes);
 
         self.selection_indices = clipboard
             .selected_offsets
@@ -790,10 +890,48 @@ impl Gridvana {
             })
             .filter(|index| self.project.is_index_in_bounds(*index))
             .collect();
+        // The pasted pixels float above the cel so dragging them cannot
+        // disturb whatever they currently overlap.
+        self.floating_selection = Some(FloatingSelection {
+            pixels,
+            layer_id: self.project.active_layer_id,
+            frame_id: self.project.active_frame_id,
+        });
         self.move_mode_active = true;
         self.selection_move_draft = None;
         self.paste_offset.x += 1;
         self.paste_offset.y += 1;
+    }
+
+    /// Writes a floating selection into its cel. Called before any edit that
+    /// would otherwise see a stale or missing float.
+    pub(super) fn commit_floating_selection(&mut self) -> bool {
+        let Some(floating) = self.floating_selection.take() else {
+            return false;
+        };
+        if floating.pixels.is_empty() {
+            return false;
+        }
+        let mut pixels = floating
+            .pixels
+            .into_iter()
+            .map(|(index, color)| DocumentPixel { index, color })
+            .collect::<Vec<_>>();
+        pixels.sort_by_key(|pixel| (pixel.index.y, pixel.index.x));
+        self.apply_document_transaction(vec![DocumentOp::SetCelPixels {
+            layer_id: floating.layer_id,
+            frame_id: floating.frame_id,
+            pixels,
+        }])
+    }
+
+    /// The float only makes sense on the cel it was created for, so drop it
+    /// when the user navigates elsewhere.
+    pub(super) fn floating_selection_matches_active_cel(&self) -> bool {
+        self.floating_selection.as_ref().is_some_and(|floating| {
+            floating.layer_id == self.project.active_layer_id
+                && floating.frame_id == self.project.active_frame_id
+        })
     }
 
     pub(super) fn duplicate_selection(&mut self) {
@@ -809,6 +947,13 @@ impl Gridvana {
         if self.selection_indices.is_empty() {
             return;
         }
+        // Deleting a float just throws it away; the cel never saw it.
+        if self.floating_selection_matches_active_cel() {
+            self.floating_selection = None;
+            self.clear_selection_state();
+            return;
+        }
+        self.commit_floating_selection();
         let mut indices = self.selection_indices.iter().copied().collect::<Vec<_>>();
         indices.sort_by_key(|index| (index.y, index.x));
         self.apply_document_transaction(vec![DocumentOp::EraseCelPixels {
@@ -940,6 +1085,11 @@ impl Gridvana {
         self.resize_canvas_width = self.project.canvas_width.to_string();
         self.resize_canvas_height = self.project.canvas_height.to_string();
         self.current_color_hex_input = super::ui::color_to_hex(self.active_color());
+        self.selection_indices
+            .retain(|index| self.project.is_index_in_bounds(*index));
+        if self.selection_indices.is_empty() {
+            self.move_mode_active = false;
+        }
     }
 
     pub(super) fn clear_timeline_selection(&mut self) {

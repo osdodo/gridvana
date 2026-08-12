@@ -33,8 +33,16 @@ export_choice!(SpriteLayoutChoice, [Horizontal => ("Horizontal", "横向"), Vert
 export_choice!(SpriteTrimChoice, [None => ("No trim", "不裁切"), Sprite => ("Trim sprite", "整体裁切"), PerFrame => ("Trim each frame", "逐帧裁切")]);
 export_choice!(SpriteEmptyChoice, [Include => ("Keep empty frames", "保留空帧"), Skip => ("Skip empty frames", "跳过空帧"), Error => ("Error on empty frame", "遇空帧报错")]);
 export_choice!(SpriteMetadataChoice, [Array => ("JSON Array", "JSON Array"), Hash => ("JSON Hash", "JSON Hash")]);
-export_choice!(SelectionCombineMode, [Replace => ("Replace", "替换"), Add => ("Add", "相加"), Subtract => ("Subtract", "相减"), Intersect => ("Intersect", "相交")]);
-export_choice!(TransformTargetChoice, [CurrentCel => ("Current Cel", "当前 Cel"), SelectedCels => ("Selected Cels", "选中 Cel"), CompositedFrame => ("Composited frame", "合成帧")]);
+
+/// How a freshly picked region merges into the existing pixel selection,
+/// derived from the modifiers held during the gesture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectionCombineMode {
+    Replace,
+    Add,
+    Subtract,
+    Intersect,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorSlot {
@@ -45,6 +53,7 @@ pub enum ColorSlot {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InspectorPanel {
     Layers,
+    Canvas,
     AiAgent,
     Export,
 }
@@ -115,10 +124,9 @@ pub enum Message {
     ClearPixelSelection,
     DeletePixelSelection,
     CutPixelSelection,
-    SetSelectionCombineMode(SelectionCombineMode),
-    SetTransformTarget(TransformTargetChoice),
-    SetTransformScale(u8),
-    TransformPixelSelection(PixelTransform),
+    OpenSelectionContextMenu,
+    CloseSelectionContextMenu,
+    TransformPixelSelectionSequence(Vec<PixelTransform>),
     CropCanvasToSelection,
     TrimCanvas,
     UpdateResizeCanvasWidth(String),
@@ -228,6 +236,7 @@ pub enum Message {
     GlobalLeftReleased,
     UpdateKeyboardModifiers {
         shift_pressed: bool,
+        alt_pressed: bool,
         zoom_modifier_pressed: bool,
     },
 }

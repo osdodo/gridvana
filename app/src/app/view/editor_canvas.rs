@@ -53,7 +53,9 @@ impl Gridvana {
         let canvas_area = canvas::view(
             displayed_project,
             canvas::ViewOptions {
-                input_enabled: !self.cli_settings_open,
+                input_enabled: !self.cli_settings_open
+                    && self.selection_context_menu.is_none()
+                    && self.cel_context_menu.is_none(),
                 preview_indices,
                 preview_color,
                 eraser_preview_indices,
@@ -68,6 +70,8 @@ impl Gridvana {
                 eraser_size: self.eraser_size,
                 onion_skin_enabled: self.onion_skin_enabled,
                 onion_skin_settings: self.onion_skin_settings,
+                transform_targets: self.pixel_transform_targets(),
+                floating_pixels: self.floating_selection_display_pixels(),
             },
         );
 

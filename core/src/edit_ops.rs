@@ -1093,13 +1093,14 @@ pub const EDIT_OP_JSON_SCHEMA: &str = r##"{
     "grid_index":{"type":"object","additionalProperties":false,"properties":{"x":{"type":"integer"},"y":{"type":"integer"}},"required":["x","y"]},
     "cel_position":{"type":"object","additionalProperties":false,"properties":{"layer_id":{"type":"integer","minimum":1},"frame_id":{"type":"integer","minimum":1}},"required":["layer_id","frame_id"]},
     "pixel_bounds":{"type":"object","additionalProperties":false,"properties":{"min_x":{"type":"integer"},"min_y":{"type":"integer"},"max_x":{"type":"integer"},"max_y":{"type":"integer"}},"required":["min_x","min_y","max_x","max_y"]},
-    "pixel_transform":{"type":"object","additionalProperties":false,"properties":{"type":{"type":"string"},"dx":{"type":"integer"},"dy":{"type":"integer"},"factor":{"type":"integer","minimum":2,"maximum":8}},"oneOf":[
+    "pixel_transform":{"type":"object","additionalProperties":false,"properties":{"type":{"type":"string"},"dx":{"type":"integer"},"dy":{"type":"integer"},"factor":{"type":"integer","minimum":2,"maximum":8},"width":{"type":"integer","minimum":1,"maximum":4096},"height":{"type":"integer","minimum":1,"maximum":4096}},"oneOf":[
       {"properties":{"type":{"const":"translate"}},"required":["type","dx","dy"]},
       {"properties":{"type":{"const":"flip_horizontal"}},"required":["type"]},
       {"properties":{"type":{"const":"flip_vertical"}},"required":["type"]},
       {"properties":{"type":{"const":"rotate_clockwise"}},"required":["type"]},
       {"properties":{"type":{"const":"rotate_counter_clockwise"}},"required":["type"]},
-      {"properties":{"type":{"const":"scale_integer"}},"required":["type","factor"]}
+      {"properties":{"type":{"const":"scale_integer"}},"required":["type","factor"]},
+      {"properties":{"type":{"const":"resize_nearest"}},"required":["type","width","height"]}
     ]},
     "rgba":{"type":"object","additionalProperties":false,"properties":{"r":{"type":"number","minimum":0,"maximum":1},"g":{"type":"number","minimum":0,"maximum":1},"b":{"type":"number","minimum":0,"maximum":1},"a":{"type":"number","minimum":0,"maximum":1}},"required":["r","g","b","a"]},
     "pixel_change":{"type":"object","additionalProperties":false,"properties":{"index":{"$ref":"#/$defs/grid_index"},"color":{"$ref":"#/$defs/rgba"}},"required":["index","color"]}

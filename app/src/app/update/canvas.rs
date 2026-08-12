@@ -63,7 +63,7 @@ impl Gridvana {
                 if self.selection_tool_active() {
                     self.clear_active_drawing();
 
-                    if self.selection_combine_mode == SelectionCombineMode::Replace
+                    if self.selection_combine_mode() == SelectionCombineMode::Replace
                         && self.move_mode_active
                         && self.selection_indices.contains(&index)
                     {
@@ -95,7 +95,7 @@ impl Gridvana {
                     return Ok(Task::none());
                 }
                 if color_slot == ColorSlot::Foreground && self.move_mode_active {
-                    self.clear_selection_state();
+                    self.deselect();
                 }
 
                 match self.current_tool {
@@ -178,13 +178,14 @@ impl Gridvana {
                     return Ok(Task::none());
                 }
                 if self.timeline_selection.is_empty() {
-                    self.clear_selection_state();
+                    self.deselect();
                 } else {
                     self.clear_timeline_selection();
                 }
                 Ok(Task::none())
             }
             Message::CopySelection => {
+                self.selection_context_menu = None;
                 if !self.text_entry_active() {
                     if self.timeline_selection.is_empty() {
                         self.copy_selection();
@@ -195,6 +196,7 @@ impl Gridvana {
                 Ok(Task::none())
             }
             Message::PasteSelection => {
+                self.selection_context_menu = None;
                 // When a modal text field is focused, let it handle Cmd+V paste
                 // instead of pasting a selection onto the canvas.
                 if !self.text_entry_active() {
@@ -208,6 +210,7 @@ impl Gridvana {
                 Ok(Task::none())
             }
             Message::DuplicateSelection => {
+                self.selection_context_menu = None;
                 if !self.text_entry_active() {
                     self.duplicate_selection();
                 }
@@ -226,12 +229,14 @@ impl Gridvana {
                 Ok(Task::none())
             }
             Message::ClearPixelSelection => {
+                self.selection_context_menu = None;
                 if !self.text_entry_active() {
-                    self.clear_selection_state();
+                    self.deselect();
                 }
                 Ok(Task::none())
             }
             Message::DeletePixelSelection => {
+                self.selection_context_menu = None;
                 if self.text_entry_active() {
                     return Ok(Task::none());
                 }
@@ -243,28 +248,23 @@ impl Gridvana {
                 }
             }
             Message::CutPixelSelection => {
+                self.selection_context_menu = None;
                 if !self.text_entry_active() && self.timeline_selection.is_empty() {
                     self.cut_pixel_selection();
                 }
                 Ok(Task::none())
             }
-            Message::SetSelectionCombineMode(mode) => {
-                self.selection_combine_mode = mode;
-                self.move_mode_active = mode == SelectionCombineMode::Replace
-                    && self.selection_tool_active()
-                    && !self.selection_indices.is_empty();
+            Message::OpenSelectionContextMenu => {
+                self.selection_context_menu = self.cursor_position;
                 Ok(Task::none())
             }
-            Message::SetTransformTarget(target) => {
-                self.transform_target = target;
+            Message::CloseSelectionContextMenu => {
+                self.selection_context_menu = None;
                 Ok(Task::none())
             }
-            Message::SetTransformScale(scale) => {
-                self.transform_scale = scale.clamp(2, 8);
-                Ok(Task::none())
-            }
-            Message::TransformPixelSelection(transform) => {
-                self.transform_pixel_selection(transform);
+            Message::TransformPixelSelectionSequence(transforms) => {
+                self.selection_context_menu = None;
+                self.transform_pixel_selection_sequence(&transforms);
                 Ok(Task::none())
             }
             Message::CropCanvasToSelection => {
@@ -308,13 +308,15 @@ impl Gridvana {
                 Ok(Task::none())
             }
             Message::SelectTool(tool) => {
+                if !matches!(tool, Tool::HandPoint | Tool::MagicWand | Tool::ColorSelect) {
+                    self.commit_floating_selection();
+                }
                 self.current_tool = tool;
                 self.clear_active_drawing();
                 self.selection_box_draft = None;
                 self.selection_move_draft = None;
-                self.move_mode_active = self.selection_tool_active()
-                    && self.selection_combine_mode == SelectionCombineMode::Replace
-                    && !self.selection_indices.is_empty();
+                self.move_mode_active =
+                    self.selection_tool_active() && !self.selection_indices.is_empty();
                 Ok(Task::none())
             }
             Message::UpdateBrushSize(size) => {
@@ -384,9 +386,11 @@ impl Gridvana {
             }
             Message::UpdateKeyboardModifiers {
                 shift_pressed,
+                alt_pressed,
                 zoom_modifier_pressed,
             } => {
                 self.shift_pressed = shift_pressed;
+                self.alt_pressed = alt_pressed;
                 self.zoom_modifier_pressed = zoom_modifier_pressed;
                 if self.current_shape.is_some() {
                     self.refresh_shape_preview();

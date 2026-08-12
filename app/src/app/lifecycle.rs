@@ -5,12 +5,11 @@ use super::{
 };
 use crate::cli_terminal::CliConfig;
 use crate::i18n::{AppPreferences, set_current_language, tr};
-use crate::types::{
-    ColorSlot, InspectorPanel, Message, SelectionCombineMode, Tool, TransformTargetChoice,
-};
+use crate::types::{ColorSlot, InspectorPanel, Message, Tool};
 use gridvana_core::grid::GridIndex;
 use gridvana_core::history::History;
 use gridvana_core::model::{Project, Rgba};
+use gridvana_core::transform::PixelTransform;
 use iced::keyboard::{
     self, Modifiers,
     key::{Key, Named},
@@ -125,6 +124,7 @@ impl Gridvana {
                 timeline_selection_anchor: None,
                 timeline_cel_clipboard: None,
                 cel_context_menu: None,
+                selection_context_menu: None,
                 app_menu_open: false,
                 current_stroke: None,
                 current_shape: None,
@@ -150,17 +150,16 @@ impl Gridvana {
                 global_left_button_down: false,
                 space_pressed: false,
                 shift_pressed: false,
+                alt_pressed: false,
                 zoom_modifier_pressed: false,
                 hovered_grid_index: None,
                 move_mode_active: false,
                 selection_indices: HashSet::new(),
-                selection_combine_mode: SelectionCombineMode::Replace,
                 selection_box_draft: None,
                 selection_move_draft: None,
                 selection_clipboard: None,
+                floating_selection: None,
                 paste_offset: GridIndex { x: 1, y: 1 },
-                transform_target: TransformTargetChoice::CurrentCel,
-                transform_scale: 2,
                 resize_canvas_width: "0".to_string(),
                 resize_canvas_height: "0".to_string(),
             },
@@ -173,6 +172,7 @@ impl Gridvana {
             if let iced::Event::Keyboard(keyboard::Event::ModifiersChanged(modifiers)) = event {
                 return Some(Message::UpdateKeyboardModifiers {
                     shift_pressed: modifiers.shift(),
+                    alt_pressed: modifiers.alt(),
                     zoom_modifier_pressed: modifiers.contains(Modifiers::COMMAND),
                 });
             }
@@ -272,6 +272,42 @@ impl Gridvana {
                             && modifiers.contains(Modifiers::COMMAND) =>
                     {
                         return Some(Message::Undo);
+                    }
+                    Key::Character(c)
+                        if c.as_str().eq_ignore_ascii_case("h")
+                            && modifiers.contains(Modifiers::SHIFT)
+                            && !modifiers.contains(Modifiers::COMMAND) =>
+                    {
+                        return Some(Message::TransformPixelSelectionSequence(vec![
+                            PixelTransform::FlipHorizontal,
+                        ]));
+                    }
+                    Key::Character(c)
+                        if c.as_str().eq_ignore_ascii_case("v")
+                            && modifiers.contains(Modifiers::SHIFT)
+                            && !modifiers.contains(Modifiers::COMMAND) =>
+                    {
+                        return Some(Message::TransformPixelSelectionSequence(vec![
+                            PixelTransform::FlipVertical,
+                        ]));
+                    }
+                    Key::Character(c)
+                        if c.as_str().eq_ignore_ascii_case("r")
+                            && modifiers.contains(Modifiers::SHIFT)
+                            && !modifiers.contains(Modifiers::COMMAND) =>
+                    {
+                        return Some(Message::TransformPixelSelectionSequence(vec![
+                            PixelTransform::RotateClockwise,
+                        ]));
+                    }
+                    Key::Character(c)
+                        if c.as_str().eq_ignore_ascii_case("l")
+                            && modifiers.contains(Modifiers::SHIFT)
+                            && !modifiers.contains(Modifiers::COMMAND) =>
+                    {
+                        return Some(Message::TransformPixelSelectionSequence(vec![
+                            PixelTransform::RotateCounterClockwise,
+                        ]));
                     }
                     Key::Named(Named::Backspace) | Key::Named(Named::Delete) => {
                         return Some(Message::DeletePixelSelection);

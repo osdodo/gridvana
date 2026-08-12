@@ -8,9 +8,7 @@ use super::super::{Gridvana, MAX_BRUSH_SIZE, MAX_ERASER_SIZE, MIN_BRUSH_SIZE, MI
 use crate::color_wheel;
 use crate::i18n::tr;
 use crate::icons::{Icon, icon_button};
-use crate::types::{
-    ColorSlot, InspectorPanel, Message, SelectionCombineMode, Tool, TransformTargetChoice,
-};
+use crate::types::{ColorSlot, InspectorPanel, Message, Tool};
 use gridvana_core::color::rgb_to_hsv;
 use gridvana_core::model::{BlendMode, LayerId, LayerKind};
 use gridvana_core::transform::PixelTransform;
@@ -195,6 +193,11 @@ impl Gridvana {
                 .width(Length::FillPortion(1))
                 .height(Length::Fixed(34.0))
                 .style(tab_style(self.inspector_panel == InspectorPanel::Layers)),
+            widget::button(tab_label(tr("Canvas", "画布")))
+                .on_press(Message::SetInspectorPanel(InspectorPanel::Canvas))
+                .width(Length::FillPortion(1))
+                .height(Length::Fixed(34.0))
+                .style(tab_style(self.inspector_panel == InspectorPanel::Canvas)),
             widget::button(tab_label(tr("Export", "导出")))
                 .on_press(Message::SetInspectorPanel(InspectorPanel::Export))
                 .width(Length::FillPortion(1))
@@ -221,8 +224,8 @@ impl Gridvana {
         if self.inspector_panel == InspectorPanel::Export {
             return self.editor_export_inspector();
         }
-        if self.selection_tool_active() {
-            return self.editor_selection_sidebar();
+        if self.inspector_panel == InspectorPanel::Canvas {
+            return self.editor_canvas_sidebar();
         }
 
         let tabs = self.editor_inspector_tabs();
@@ -607,7 +610,7 @@ impl Gridvana {
             .into()
     }
 
-    fn editor_selection_sidebar(&self) -> Element<'_, Message> {
+    fn editor_canvas_sidebar(&self) -> Element<'_, Message> {
         let square_grid = matches!(
             self.project.grid_config,
             gridvana_core::model::GridConfig::Square { .. }
@@ -632,68 +635,6 @@ impl Gridvana {
         };
         let section_label =
             |label: &'static str| widget::text(label).size(11).color(TEXT_SECONDARY);
-
-        let selection_actions = widget::column![
-            widget::row![
-                action_button(tr("Select all", "全选"), Message::SelectAllPixels),
-                action_button(tr("Invert", "反选"), Message::InvertPixelSelection),
-            ]
-            .spacing(4),
-            widget::row![
-                action_button(tr("Deselect", "取消"), Message::ClearPixelSelection),
-                action_button(tr("Delete", "删除"), Message::DeletePixelSelection),
-            ]
-            .spacing(4),
-            widget::row![
-                action_button(tr("Cut", "剪切"), Message::CutPixelSelection),
-                action_button(tr("Copy", "复制"), Message::CopySelection),
-            ]
-            .spacing(4),
-        ]
-        .spacing(4);
-
-        let transform_actions = widget::column![
-            widget::row![
-                square_grid_action(
-                    tr("Flip horizontal", "水平翻转"),
-                    Message::TransformPixelSelection(PixelTransform::FlipHorizontal),
-                ),
-                square_grid_action(
-                    tr("Flip vertical", "垂直翻转"),
-                    Message::TransformPixelSelection(PixelTransform::FlipVertical),
-                ),
-            ]
-            .spacing(4),
-            widget::row![
-                square_grid_action(
-                    tr("Clockwise", "顺时针"),
-                    Message::TransformPixelSelection(PixelTransform::RotateClockwise),
-                ),
-                square_grid_action(
-                    tr("Counterclockwise", "逆时针"),
-                    Message::TransformPixelSelection(PixelTransform::RotateCounterClockwise),
-                ),
-            ]
-            .spacing(4),
-            widget::row![
-                widget::slider(2..=8, self.transform_scale, Message::SetTransformScale,)
-                    .step(1u8)
-                    .width(Length::Fill),
-                widget::text(format!("{}×", self.transform_scale))
-                    .size(10)
-                    .color(TEXT_MUTED),
-                square_grid_action(
-                    tr("Scale", "缩放"),
-                    Message::TransformPixelSelection(PixelTransform::ScaleInteger {
-                        factor: self.transform_scale,
-                    }),
-                )
-                .width(Length::Fixed(48.0)),
-            ]
-            .spacing(5)
-            .align_y(iced::Alignment::Center),
-        ]
-        .spacing(4);
 
         let canvas_size = widget::column![
             widget::row![
@@ -729,9 +670,12 @@ impl Gridvana {
         .spacing(4);
 
         let sidebar_content = widget::column![
-            widget::text(tr("Selection & transform", "选择与变换"))
+            widget::text(tr("Canvas", "画布"))
                 .size(13)
                 .color(TEXT_PRIMARY),
+            section_label(tr("Size", "尺寸")),
+            canvas_size,
+            section_label(tr("Selection", "选区")),
             widget::text(format!(
                 "{} {}",
                 self.selection_indices.len(),
@@ -739,32 +683,12 @@ impl Gridvana {
             ))
             .size(10)
             .color(TEXT_MUTED),
-            section_label(tr("Combine mode", "组合模式")),
-            widget::pick_list(
-                SelectionCombineMode::ALL,
-                Some(self.selection_combine_mode),
-                Message::SetSelectionCombineMode,
-            )
-            .padding([6, 8])
-            .text_size(10)
-            .style(pick_list_style)
-            .menu_style(pick_list_menu_style)
-            .width(Length::Fill),
-            selection_actions,
-            section_label(tr("Transform target", "变换目标")),
-            widget::pick_list(
-                TransformTargetChoice::ALL,
-                Some(self.transform_target),
-                Message::SetTransformTarget,
-            )
-            .padding([6, 8])
-            .text_size(10)
-            .style(pick_list_style)
-            .menu_style(pick_list_menu_style)
-            .width(Length::Fill),
-            transform_actions,
-            section_label(tr("Canvas", "画布")),
-            canvas_size,
+            widget::text(tr(
+                "Shift adds, Alt subtracts. Right-click a selection for actions.",
+                "Shift 加选，Alt 减选。在选区上右键查看操作。"
+            ))
+            .size(10)
+            .color(TEXT_MUTED),
         ]
         .spacing(8);
 
@@ -780,6 +704,140 @@ impl Gridvana {
             .height(Length::Fill)
             .style(panel_style)
             .into()
+    }
+
+    pub(super) fn selection_context_menu_overlay(&self) -> Option<Element<'_, Message>> {
+        let anchor = self.selection_context_menu?;
+        let square_grid = matches!(
+            self.project.grid_config,
+            gridvana_core::model::GridConfig::Square { .. }
+        );
+        let transform = |transform: PixelTransform| {
+            square_grid.then(|| Message::TransformPixelSelectionSequence(vec![transform]))
+        };
+
+        // (label, shortcut hint, message).
+        let entries: Vec<(&'static str, &'static str, Option<Message>)> = vec![
+            (tr("Cut", "剪切"), "⌘X", Some(Message::CutPixelSelection)),
+            (tr("Copy", "复制"), "⌘C", Some(Message::CopySelection)),
+            (
+                tr("Paste", "粘贴"),
+                "⌘V",
+                self.selection_clipboard
+                    .is_some()
+                    .then_some(Message::PasteSelection),
+            ),
+            (
+                tr("Duplicate", "创建副本"),
+                "⌘D",
+                Some(Message::DuplicateSelection),
+            ),
+            (
+                tr("Delete", "删除"),
+                "⌫",
+                Some(Message::DeletePixelSelection),
+            ),
+            (
+                tr("Flip horizontal", "水平翻转"),
+                "⇧H",
+                transform(PixelTransform::FlipHorizontal),
+            ),
+            (
+                tr("Flip vertical", "垂直翻转"),
+                "⇧V",
+                transform(PixelTransform::FlipVertical),
+            ),
+            (
+                tr("Rotate clockwise", "顺时针旋转"),
+                "⇧R",
+                transform(PixelTransform::RotateClockwise),
+            ),
+            (
+                tr("Rotate counterclockwise", "逆时针旋转"),
+                "⇧L",
+                transform(PixelTransform::RotateCounterClockwise),
+            ),
+            (
+                tr("Deselect", "取消选择"),
+                "Esc",
+                Some(Message::ClearPixelSelection),
+            ),
+        ];
+        let menu_width = 188.0;
+        let menu_height = 26.0 * entries.len() as f32 + 8.0;
+
+        let positioned_menu = widget::responsive(move |size| {
+            let items = entries
+                .iter()
+                .map(|(label, shortcut, message)| {
+                    let enabled = message.is_some();
+                    widget::button(
+                        widget::row![
+                            widget::text(*label).size(11).color(if enabled {
+                                TEXT_PRIMARY
+                            } else {
+                                TEXT_MUTED
+                            }),
+                            widget::Space::new().width(Length::Fill),
+                            widget::text(*shortcut).size(10).color(TEXT_MUTED),
+                        ]
+                        .align_y(iced::Alignment::Center),
+                    )
+                    .on_press_maybe(message.clone())
+                    .padding([5, 10])
+                    .width(Length::Fill)
+                    .style(|theme: &Theme, status| {
+                        let mut style = widget::button::text(theme, status);
+                        if matches!(status, widget::button::Status::Hovered) {
+                            style.background =
+                                Some(iced::Color::from_rgba(1.0, 1.0, 1.0, 0.07).into());
+                        }
+                        style.border = iced::Border {
+                            color: iced::Color::TRANSPARENT,
+                            width: 0.0,
+                            radius: 0.0.into(),
+                        };
+                        style
+                    })
+                    .into()
+                })
+                .collect::<Vec<Element<'static, Message>>>();
+            let menu = widget::container(widget::column(items).spacing(0))
+                .width(Length::Fixed(menu_width))
+                .padding(4)
+                .style(|_theme: &Theme| {
+                    widget::container::Style::default()
+                        .background(OVERLAY_BACKGROUND)
+                        .border(iced::Border {
+                            color: BORDER_SUBTLE,
+                            width: 1.0,
+                            radius: 3.0.into(),
+                        })
+                });
+
+            widget::column![
+                widget::Space::new().height(Length::Fixed(
+                    anchor.y.min((size.height - menu_height).max(0.0))
+                )),
+                widget::row![
+                    widget::Space::new().width(Length::Fixed(
+                        anchor.x.min((size.width - menu_width).max(0.0))
+                    )),
+                    menu,
+                    widget::Space::new().width(Length::Fill),
+                ],
+                widget::Space::new().height(Length::Fill),
+            ]
+            .into()
+        })
+        .width(Length::Fill)
+        .height(Length::Fill);
+
+        Some(widget::opaque(
+            widget::mouse_area(positioned_menu)
+                .on_press(Message::CloseSelectionContextMenu)
+                .on_right_press(Message::CloseSelectionContextMenu),
+        ))
     }
 
     pub(super) fn editor_status_bar(&self, active_tool_name: &str) -> Element<'_, Message> {

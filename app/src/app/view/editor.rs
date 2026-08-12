@@ -43,6 +43,10 @@ impl Gridvana {
             layers.push(cel_context_menu);
         }
 
+        if let Some(selection_context_menu) = self.selection_context_menu_overlay() {
+            layers.push(selection_context_menu);
+        }
+
         if let Some(settings) = self.settings_overlay() {
             layers.push(settings);
         }

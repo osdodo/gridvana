@@ -1,11 +1,12 @@
 use crate::grid::GridIndex;
-use crate::model::{CelPosition, GridConfig, Project};
+use crate::model::{CelPosition, GridConfig, Project, Rgba};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 const MAX_TRANSFORM_TARGETS: usize = 256;
 const MAX_TRANSFORM_SELECTION: usize = 1_048_576;
 const MAX_GENERATED_PIXELS: usize = 4_194_304;
+const MAX_RESIZE_DIMENSION: u32 = 4096;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PixelBounds {
@@ -61,6 +62,7 @@ pub enum PixelTransform {
     RotateClockwise,
     RotateCounterClockwise,
     ScaleInteger { factor: u8 },
+    ResizeNearest { width: u32, height: u32 },
 }
 
 pub fn transform_indices(
@@ -68,6 +70,10 @@ pub fn transform_indices(
     transform: PixelTransform,
     bounds: PixelBounds,
 ) -> Result<HashSet<GridIndex>, String> {
+    let indices = indices.into_iter().collect::<Vec<_>>();
+    if let PixelTransform::ResizeNearest { width, height } = transform {
+        return resize_nearest_indices(&indices, bounds, width, height);
+    }
     let mut transformed = HashSet::new();
     for index in indices {
         transformed.extend(transformed_positions(index, transform, bounds)?);
@@ -177,29 +183,40 @@ pub fn transform_cel_pixels(
             continue;
         };
         let mut next_pixels = cel.pixels.clone();
-        let mut transformed_pixels = Vec::new();
+        let mut selected_pixels = HashMap::new();
         for (&local_index, &color) in &cel.pixels {
             let world = world_index(local_index, cel.offset)?;
             if selection_set.is_empty() || selection_set.contains(&world) {
                 next_pixels.remove(&local_index);
+                selected_pixels.insert(world, color);
+            }
+        }
+        let transformed_pixels = if let PixelTransform::ResizeNearest { width, height } = transform
+        {
+            resize_nearest_pixels(&selected_pixels, bounds, width, height)?
+        } else {
+            let mut transformed_pixels = Vec::new();
+            for (world, color) in selected_pixels {
                 for destination in transformed_positions(world, transform, bounds)? {
-                    if !project.is_index_in_bounds(destination) {
-                        return Err(format!(
-                            "pixel transform moves content out of bounds: ({}, {})",
-                            destination.x, destination.y
-                        ));
-                    }
-                    transformed_pixels
-                        .push((local_index_from_world(destination, cel.offset)?, color));
-                    generated_pixels += 1;
-                    if generated_pixels > MAX_GENERATED_PIXELS {
-                        return Err("pixel transform generates too many pixels".to_string());
-                    }
+                    transformed_pixels.push((destination, color));
                 }
+            }
+            transformed_pixels
+        };
+        generated_pixels = generated_pixels.saturating_add(transformed_pixels.len());
+        if generated_pixels > MAX_GENERATED_PIXELS {
+            return Err("pixel transform generates too many pixels".to_string());
+        }
+        for (destination, _) in &transformed_pixels {
+            if !project.is_index_in_bounds(*destination) {
+                return Err(format!(
+                    "pixel transform moves content out of bounds: ({}, {})",
+                    destination.x, destination.y
+                ));
             }
         }
         for (index, color) in transformed_pixels {
-            next_pixels.insert(index, color);
+            next_pixels.insert(local_index_from_world(index, cel.offset)?, color);
         }
         updates.push((*target, next_pixels));
     }
@@ -282,6 +299,16 @@ fn validate_transform(transform: PixelTransform) -> Result<(), String> {
         PixelTransform::ScaleInteger { factor } if !(2..=8).contains(&factor) => {
             Err("pixel scale factor must be between 2 and 8".to_string())
         }
+        PixelTransform::ResizeNearest { width, height }
+            if width == 0
+                || height == 0
+                || width > MAX_RESIZE_DIMENSION
+                || height > MAX_RESIZE_DIMENSION =>
+        {
+            Err(format!(
+                "pixel resize dimensions must be between 1 and {MAX_RESIZE_DIMENSION}"
+            ))
+        }
         _ => Ok(()),
     }
 }
@@ -353,8 +380,120 @@ fn transformed_positions(
             }
             return Ok(positions);
         }
+        // Resize samples backwards from the target grid, so it is dispatched
+        // to `resize_nearest_*` before reaching this per-source-pixel mapping.
+        PixelTransform::ResizeNearest { .. } => {
+            return Err("pixel resize must be applied through resize_nearest".to_string());
+        }
     };
     Ok(vec![position])
+}
+
+fn resize_nearest_indices(
+    indices: &[GridIndex],
+    bounds: PixelBounds,
+    target_width: u32,
+    target_height: u32,
+) -> Result<HashSet<GridIndex>, String> {
+    validate_transform(PixelTransform::ResizeNearest {
+        width: target_width,
+        height: target_height,
+    })?;
+    let selected = indices.iter().copied().collect::<HashSet<_>>();
+    let source_width = u64::from(bounds.width()?);
+    let source_height = u64::from(bounds.height()?);
+    let mut transformed = HashSet::new();
+    for target_y in 0..target_height {
+        let source_y = symmetric_nearest_coordinate(
+            u64::from(target_y),
+            source_height,
+            u64::from(target_height),
+        );
+        for target_x in 0..target_width {
+            let source_x = symmetric_nearest_coordinate(
+                u64::from(target_x),
+                source_width,
+                u64::from(target_width),
+            );
+            let source = GridIndex {
+                x: bounds.min_x
+                    + i32::try_from(source_x)
+                        .map_err(|_| "pixel resize x coordinate overflowed".to_string())?,
+                y: bounds.min_y
+                    + i32::try_from(source_y)
+                        .map_err(|_| "pixel resize y coordinate overflowed".to_string())?,
+            };
+            if selected.contains(&source) {
+                transformed.insert(GridIndex {
+                    x: bounds.min_x
+                        + i32::try_from(target_x)
+                            .map_err(|_| "pixel resize x coordinate overflowed".to_string())?,
+                    y: bounds.min_y
+                        + i32::try_from(target_y)
+                            .map_err(|_| "pixel resize y coordinate overflowed".to_string())?,
+                });
+            }
+        }
+    }
+    Ok(transformed)
+}
+
+fn resize_nearest_pixels(
+    pixels: &HashMap<GridIndex, Rgba>,
+    bounds: PixelBounds,
+    target_width: u32,
+    target_height: u32,
+) -> Result<Vec<(GridIndex, Rgba)>, String> {
+    let source_width = u64::from(bounds.width()?);
+    let source_height = u64::from(bounds.height()?);
+    let mut transformed = Vec::new();
+    for target_y in 0..target_height {
+        let source_y = symmetric_nearest_coordinate(
+            u64::from(target_y),
+            source_height,
+            u64::from(target_height),
+        );
+        for target_x in 0..target_width {
+            let source_x = symmetric_nearest_coordinate(
+                u64::from(target_x),
+                source_width,
+                u64::from(target_width),
+            );
+            let source = GridIndex {
+                x: bounds.min_x
+                    + i32::try_from(source_x)
+                        .map_err(|_| "pixel resize x coordinate overflowed".to_string())?,
+                y: bounds.min_y
+                    + i32::try_from(source_y)
+                        .map_err(|_| "pixel resize y coordinate overflowed".to_string())?,
+            };
+            if let Some(&color) = pixels.get(&source) {
+                transformed.push((
+                    GridIndex {
+                        x: bounds.min_x
+                            + i32::try_from(target_x)
+                                .map_err(|_| "pixel resize x coordinate overflowed".to_string())?,
+                        y: bounds.min_y
+                            + i32::try_from(target_y)
+                                .map_err(|_| "pixel resize y coordinate overflowed".to_string())?,
+                    },
+                    color,
+                ));
+            }
+        }
+    }
+    Ok(transformed)
+}
+
+fn symmetric_nearest_coordinate(target: u64, source_len: u64, target_len: u64) -> u64 {
+    let mirrored_target = target_len - 1 - target;
+    if target > mirrored_target {
+        source_len - 1 - symmetric_nearest_coordinate(mirrored_target, source_len, target_len)
+    } else if target == mirrored_target {
+        (source_len - 1) / 2
+    } else {
+        ((target * 2 + 1) * source_len / (target_len * 2)).min(source_len - 1)
+    }
 }
 
 fn materialize_all_links(project: &mut Project) -> Result<(), String> {
@@ -402,7 +541,10 @@ fn local_index_from_world(world: GridIndex, offset: GridIndex) -> Result<GridInd
 
 #[cfg(test)]
 mod tests {
-    use super::{PixelBounds, PixelTransform, crop_canvas, transform_cel_pixels, trim_canvas};
+    use super::{
+        PixelBounds, PixelTransform, crop_canvas, transform_cel_pixels, transform_indices,
+        trim_canvas,
+    };
     use crate::grid::GridIndex;
     use crate::model::{CelPosition, Project, Rgba};
 
@@ -473,6 +615,106 @@ mod tests {
         )
         .unwrap();
         assert_eq!(project.current_cel().unwrap().pixels.len(), 4);
+    }
+
+    #[test]
+    fn nearest_resize_supports_expansion_and_reduction() {
+        let bounds = PixelBounds {
+            min_x: 2,
+            min_y: 3,
+            max_x: 5,
+            max_y: 6,
+        };
+        let selection = (3..=6)
+            .flat_map(|y| (2..=5).map(move |x| GridIndex { x, y }))
+            .collect::<Vec<_>>();
+
+        let reduced = transform_indices(
+            selection.iter().copied(),
+            PixelTransform::ResizeNearest {
+                width: 2,
+                height: 2,
+            },
+            bounds,
+        )
+        .unwrap();
+        assert_eq!(reduced.len(), 4);
+        assert!(reduced.contains(&GridIndex { x: 2, y: 3 }));
+        assert!(reduced.contains(&GridIndex { x: 3, y: 4 }));
+
+        let expanded = transform_indices(
+            selection,
+            PixelTransform::ResizeNearest {
+                width: 8,
+                height: 8,
+            },
+            bounds,
+        )
+        .unwrap();
+        assert_eq!(expanded.len(), 64);
+        assert!(expanded.contains(&GridIndex { x: 9, y: 10 }));
+    }
+
+    #[test]
+    fn nearest_resize_never_generates_pixels_outside_target_bounds() {
+        let bounds = PixelBounds {
+            min_x: 5,
+            min_y: 7,
+            max_x: 20,
+            max_y: 22,
+        };
+        let selection = (7..=22)
+            .flat_map(|y| (5..=20).map(move |x| GridIndex { x, y }))
+            .collect::<Vec<_>>();
+        let resized = transform_indices(
+            selection,
+            PixelTransform::ResizeNearest {
+                width: 23,
+                height: 23,
+            },
+            bounds,
+        )
+        .unwrap();
+
+        assert!(resized.iter().all(|index| {
+            index.x >= bounds.min_x
+                && index.x < bounds.min_x + 23
+                && index.y >= bounds.min_y
+                && index.y < bounds.min_y + 23
+        }));
+        assert_eq!(PixelBounds::from_indices(resized).unwrap().max_x, 27);
+    }
+
+    #[test]
+    fn nearest_resize_preserves_horizontal_symmetry() {
+        let bounds = PixelBounds {
+            min_x: 0,
+            min_y: 0,
+            max_x: 6,
+            max_y: 2,
+        };
+        let selection = [
+            GridIndex { x: 0, y: 1 },
+            GridIndex { x: 1, y: 1 },
+            GridIndex { x: 5, y: 1 },
+            GridIndex { x: 6, y: 1 },
+        ];
+        let resized = transform_indices(
+            selection,
+            PixelTransform::ResizeNearest {
+                width: 10,
+                height: 4,
+            },
+            bounds,
+        )
+        .unwrap();
+
+        assert!(resized.iter().all(|index| {
+            resized.contains(&GridIndex {
+                x: 9 - index.x,
+                y: index.y,
+            })
+        }));
     }
 
     #[test]
