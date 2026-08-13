@@ -143,7 +143,6 @@ pub enum Message {
     SwapForegroundBackground,
     UpdateColorHexInput(String),
     SubmitColorHexInput,
-    UpdateColorValue(u8),
     UpdateColorAlpha(u8),
     UpdateCanvasWidth(String),
     UpdateCanvasHeight(String),

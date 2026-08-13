@@ -5,7 +5,6 @@ use super::super::{
     SelectionMoveDraft, ShapeKind, StrokeKind,
 };
 use crate::types::{ColorSlot, InspectorPanel, Message, SelectionCombineMode, Tool};
-use gridvana_core::color::{hsv_to_rgba, rgb_to_hsv};
 use iced::Task;
 
 impl Gridvana {
@@ -348,17 +347,6 @@ impl Gridvana {
                 if let Some(color) = parse_hex_color_input(&self.current_color_hex_input) {
                     self.set_current_color(color);
                 }
-                Ok(Task::none())
-            }
-            Message::UpdateColorValue(value) => {
-                let current_color = self.active_color();
-                let (hue, saturation, _) = rgb_to_hsv(current_color);
-                self.set_current_color(hsv_to_rgba(
-                    hue,
-                    saturation,
-                    value as f32 / 255.0,
-                    current_color.a,
-                ));
                 Ok(Task::none())
             }
             Message::UpdateColorAlpha(value) => {

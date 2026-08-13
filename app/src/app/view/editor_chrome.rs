@@ -5,11 +5,10 @@ use super::super::ui::{
     panel_style, pick_list_menu_style, pick_list_style, text_input_style,
 };
 use super::super::{Gridvana, MAX_BRUSH_SIZE, MAX_ERASER_SIZE, MIN_BRUSH_SIZE, MIN_ERASER_SIZE};
-use crate::color_wheel;
+use crate::color_picker;
 use crate::i18n::tr;
 use crate::icons::{Icon, icon_button};
 use crate::types::{ColorSlot, InspectorPanel, Message, Tool};
-use gridvana_core::color::rgb_to_hsv;
 use gridvana_core::model::{BlendMode, LayerId, LayerKind};
 use gridvana_core::transform::PixelTransform;
 use iced::{Background, Element, Length, Theme, widget};
@@ -416,8 +415,6 @@ impl Gridvana {
         .spacing(0);
 
         let current_color = self.active_color();
-        let (_, _, current_value) = rgb_to_hsv(current_color);
-        let current_value = color_channel_u8(current_value);
         let current_alpha = color_channel_u8(current_color.a);
         let color_slot_button =
             |label: &'static str, slot: ColorSlot, color: gridvana_core::model::Rgba| {
@@ -481,23 +478,7 @@ impl Gridvana {
                     ]
                     .spacing(6)
                     .align_y(iced::Alignment::Center),
-                    widget::container(color_wheel::view(current_color))
-                        .width(Length::Fill)
-                        .center_x(Length::Fill),
-                    widget::row![
-                        widget::text(tr("Value", "明度"))
-                            .size(10)
-                            .color(TEXT_SECONDARY)
-                            .width(Length::Fixed(42.0)),
-                        widget::slider(0..=255, current_value, Message::UpdateColorValue)
-                            .step(1u8)
-                            .width(Length::Fill),
-                        widget::text(format!("{current_value:03}"))
-                            .size(9)
-                            .color(TEXT_MUTED),
-                    ]
-                    .spacing(6)
-                    .align_y(iced::Alignment::Center),
+                    color_picker::view(current_color),
                     widget::row![
                         widget::text("Alpha")
                             .size(10)

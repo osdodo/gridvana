@@ -2,7 +2,7 @@ mod app;
 mod branding;
 mod canvas;
 mod cli_terminal;
-mod color_wheel;
+mod color_picker;
 mod i18n;
 mod icons;
 mod mcp;
