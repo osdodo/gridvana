@@ -297,6 +297,121 @@ pub(super) fn ellipse_shape_indices(
     end: GridIndex,
     filled: bool,
 ) -> Vec<GridIndex> {
+    if !matches!(project.grid_config, GridConfig::Square { .. }) {
+        return ellipse_shape_indices_by_distance(project, start, end, filled);
+    }
+
+    let outline = ellipse_outline_indices(start, end);
+    let indices = if filled {
+        fill_horizontal_spans(outline)
+    } else {
+        outline
+    };
+
+    indices
+        .into_iter()
+        .filter(|index| project.is_index_in_bounds(*index))
+        .collect()
+}
+
+/// Midpoint ellipse rasterizer over the `start`/`end` bounding box. Working in
+/// integer index space is what produces the evenly stepped, symmetric outline
+/// that pixel-art editors are expected to draw.
+fn ellipse_outline_indices(start: GridIndex, end: GridIndex) -> Vec<GridIndex> {
+    let mut left = start.x.min(end.x) as i64;
+    let mut right = start.x.max(end.x) as i64;
+    let mut top = start.y.min(end.y) as i64;
+
+    let width = right - left;
+    let height = start.y.max(end.y) as i64 - top;
+    let height_is_odd = height & 1;
+
+    let mut dx = 4 * (1 - width) * height * height;
+    let mut dy = 4 * (height_is_odd + 1) * width * width;
+    let mut error = dx + dy + height_is_odd * width * width;
+
+    top += (height + 1) / 2;
+    let mut bottom = top - height_is_odd;
+
+    let dx_increment = 8 * height * height;
+    let dy_increment = 8 * width * width;
+
+    let mut indices = Vec::new();
+    let mut push = |x: i64, y: i64| {
+        indices.push(GridIndex {
+            x: x as i32,
+            y: y as i32,
+        })
+    };
+
+    loop {
+        push(right, top);
+        push(left, top);
+        push(left, bottom);
+        push(right, bottom);
+
+        let doubled_error = 2 * error;
+        if doubled_error <= dy {
+            top += 1;
+            bottom -= 1;
+            dy += dy_increment;
+            error += dy;
+        }
+        if doubled_error >= dx || 2 * error > dy {
+            left += 1;
+            right -= 1;
+            dx += dx_increment;
+            error += dx;
+        }
+
+        if left > right {
+            break;
+        }
+    }
+
+    // Very flat ellipses exit the loop before the left and right tips are
+    // reached, so walk the remaining rows and cap them off.
+    while top - bottom < height {
+        push(left - 1, top);
+        push(right + 1, top);
+        push(left - 1, bottom);
+        push(right + 1, bottom);
+        top += 1;
+        bottom -= 1;
+    }
+
+    indices.sort_unstable_by_key(|index| (index.y, index.x));
+    indices.dedup();
+    indices
+}
+
+/// The ellipse outline is convex, so every row between its extremes is solid.
+fn fill_horizontal_spans(outline: Vec<GridIndex>) -> Vec<GridIndex> {
+    let mut spans: HashMap<i32, (i32, i32)> = HashMap::new();
+    for index in outline {
+        spans
+            .entry(index.y)
+            .and_modify(|(min_x, max_x)| {
+                *min_x = (*min_x).min(index.x);
+                *max_x = (*max_x).max(index.x);
+            })
+            .or_insert((index.x, index.x));
+    }
+
+    spans
+        .into_iter()
+        .flat_map(|(y, (min_x, max_x))| (min_x..=max_x).map(move |x| GridIndex { x, y }))
+        .collect()
+}
+
+/// Hexagon and triangle grids have no cartesian index space to rasterize in, so
+/// they keep the world-space distance test.
+fn ellipse_shape_indices_by_distance(
+    project: &Project,
+    start: GridIndex,
+    end: GridIndex,
+    filled: bool,
+) -> Vec<GridIndex> {
     let grid = project.grid_config.create_system();
     let start_center = grid.cell_center(start);
     let end_center = grid.cell_center(end);
@@ -304,16 +419,9 @@ pub(super) fn ellipse_shape_indices(
     let center_x = (start_center.x + end_center.x) * 0.5;
     let center_y = (start_center.y + end_center.y) * 0.5;
 
-    let mut radius_x = (start_center.x - end_center.x).abs() * 0.5;
-    let mut radius_y = (start_center.y - end_center.y).abs() * 0.5;
-
     let fallback_radius = (grid_cell_size(project.grid_config) * 0.25).max(0.5);
-    if radius_x <= f32::EPSILON {
-        radius_x = fallback_radius;
-    }
-    if radius_y <= f32::EPSILON {
-        radius_y = fallback_radius;
-    }
+    let radius_x = ((start_center.x - end_center.x).abs() * 0.5).max(fallback_radius);
+    let radius_y = ((start_center.y - end_center.y).abs() * 0.5).max(fallback_radius);
 
     let border_thickness = (grid_cell_size(project.grid_config) * 0.5).max(0.5);
     let inner_radius_x = (radius_x - border_thickness).max(0.0);
@@ -395,11 +503,79 @@ fn canvas_grid_indices(project: &Project) -> Vec<GridIndex> {
 #[cfg(test)]
 mod tests {
     use super::{
-        current_cel_world_pixels, magic_wand_indices, min_selection_index, same_color_indices,
+        current_cel_world_pixels, ellipse_shape_indices, magic_wand_indices, min_selection_index,
+        same_color_indices,
     };
     use gridvana_core::grid::GridIndex;
     use gridvana_core::model::{Project, Rgba};
     use std::collections::HashSet;
+
+    fn render_ellipse(size: u32, filled: bool) -> String {
+        let project = Project::new_square(1.0, size, size);
+        let indices: HashSet<GridIndex> = ellipse_shape_indices(
+            &project,
+            GridIndex { x: 0, y: 0 },
+            GridIndex {
+                x: size as i32 - 1,
+                y: size as i32 - 1,
+            },
+            filled,
+        )
+        .into_iter()
+        .collect();
+
+        (0..size as i32)
+            .map(|y| {
+                (0..size as i32)
+                    .map(|x| {
+                        if indices.contains(&GridIndex { x, y }) {
+                            '#'
+                        } else {
+                            '.'
+                        }
+                    })
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn ellipse_outline_is_symmetric_and_one_pixel_wide() {
+        assert_eq!(
+            render_ellipse(9, false),
+            [
+                "...###...",
+                "..#...#..",
+                ".#.....#.",
+                "#.......#",
+                "#.......#",
+                "#.......#",
+                ".#.....#.",
+                "..#...#..",
+                "...###...",
+            ]
+            .join("\n")
+        );
+    }
+
+    #[test]
+    fn ellipse_fill_covers_the_outline_rows() {
+        assert_eq!(
+            render_ellipse(8, true),
+            [
+                "..####..",
+                ".######.",
+                "########",
+                "########",
+                "########",
+                "########",
+                ".######.",
+                "..####..",
+            ]
+            .join("\n")
+        );
+    }
 
     #[test]
     fn selection_anchor_uses_the_independent_minimum_coordinates() {
