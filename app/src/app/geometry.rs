@@ -41,7 +41,9 @@ pub(super) fn selection_pixels_in_box(
 
 pub(super) fn magic_wand_indices(project: &Project, start: GridIndex) -> HashSet<GridIndex> {
     let pixels = current_cel_world_pixels(project);
-    let target_color = pixels.get(&start).copied();
+    let Some(target_color) = pixels.get(&start).copied() else {
+        return HashSet::new();
+    };
     let grid = project.grid_config.create_system();
     let mut selected = HashSet::new();
     let mut pending = vec![start];
@@ -51,7 +53,7 @@ pub(super) fn magic_wand_indices(project: &Project, start: GridIndex) -> HashSet
         }
         for neighbor in grid.neighbors(index) {
             if project.is_index_in_bounds(neighbor)
-                && pixels.get(&neighbor).copied() == target_color
+                && pixels.get(&neighbor).copied() == Some(target_color)
                 && !selected.contains(&neighbor)
             {
                 pending.push(neighbor);
@@ -63,11 +65,13 @@ pub(super) fn magic_wand_indices(project: &Project, start: GridIndex) -> HashSet
 
 pub(super) fn same_color_indices(project: &Project, start: GridIndex) -> HashSet<GridIndex> {
     let pixels = current_cel_world_pixels(project);
-    let target_color = pixels.get(&start).copied();
+    let Some(target_color) = pixels.get(&start).copied() else {
+        return HashSet::new();
+    };
     project
         .canvas_grid_indices()
         .into_iter()
-        .filter(|index| pixels.get(index).copied() == target_color)
+        .filter(|index| pixels.get(index).copied() == Some(target_color))
         .collect()
 }
 
@@ -592,21 +596,23 @@ mod tests {
     }
 
     #[test]
-    fn magic_wand_and_color_selection_include_transparent_cells() {
+    fn magic_wand_and_color_selection_skip_transparent_cells() {
         let mut project = Project::new_square(1.0, 3, 2);
         let cel = project.current_cel_mut().unwrap();
         cel.pixels.insert(GridIndex { x: 1, y: 0 }, Rgba::WHITE);
         cel.pixels.insert(GridIndex { x: 1, y: 1 }, Rgba::WHITE);
 
-        let contiguous = magic_wand_indices(&project, GridIndex { x: 0, y: 0 });
-        assert_eq!(
-            contiguous,
-            HashSet::from([GridIndex { x: 0, y: 0 }, GridIndex { x: 0, y: 1 }])
-        );
+        assert!(magic_wand_indices(&project, GridIndex { x: 0, y: 0 }).is_empty());
+        assert!(same_color_indices(&project, GridIndex { x: 2, y: 0 }).is_empty());
 
-        let transparent = same_color_indices(&project, GridIndex { x: 2, y: 0 });
-        assert_eq!(transparent.len(), 4);
-        assert!(!transparent.contains(&GridIndex { x: 1, y: 0 }));
+        assert_eq!(
+            magic_wand_indices(&project, GridIndex { x: 1, y: 0 }),
+            HashSet::from([GridIndex { x: 1, y: 0 }, GridIndex { x: 1, y: 1 }])
+        );
+        assert_eq!(
+            same_color_indices(&project, GridIndex { x: 1, y: 0 }),
+            HashSet::from([GridIndex { x: 1, y: 0 }, GridIndex { x: 1, y: 1 }])
+        );
     }
 
     #[test]
