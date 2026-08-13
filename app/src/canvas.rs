@@ -10,6 +10,9 @@ use iced::mouse;
 use iced::widget::canvas::{self, Canvas, Event, Frame, Geometry, Path, Stroke};
 use iced::{Color, Element, Rectangle, Theme};
 
+/// Flat surround behind the sprite, matching the app theme.
+const WORKSPACE_BACKGROUND: Color = crate::app::ui::APP_BACKGROUND;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OnionSkinSettings {
     pub previous_frames: u8,
@@ -317,25 +320,15 @@ impl<'a> canvas::Program<crate::Message> for GridLayer<'a> {
         _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
         let mut frame = Frame::new(renderer, bounds.size());
-        draw_workspace_checkerboard(&mut frame, bounds);
+        frame.fill_rectangle(iced::Point::ORIGIN, bounds.size(), WORKSPACE_BACKGROUND);
 
         let origin = canvas_origin(self.project, bounds, state.scaling, state.translation);
         frame.translate(origin);
         frame.scale(state.scaling);
 
+        draw_transparency_checkerboard(&mut frame, self.project);
+
         let grid = self.project.grid_config.create_system();
-        let grid_stroke = Stroke::default()
-            .with_color(Color::from_rgba(0.86, 0.88, 0.92, 0.12))
-            .with_width(1.0 / state.scaling.max(0.1));
-
-        for index in self.project.canvas_grid_indices() {
-            let poly_points = grid.cell_geometry(index);
-            if poly_points.is_empty() {
-                continue;
-            }
-
-            frame.stroke(&path_from_points(&poly_points), grid_stroke);
-        }
 
         if self.onion_skin_enabled {
             for cell in onion_skin_cells(self.project, self.onion_skin_settings) {
@@ -1088,21 +1081,28 @@ fn canvas_origin(
     )
 }
 
-fn draw_workspace_checkerboard(frame: &mut Frame, bounds: Rectangle) {
-    const TILE: f32 = 22.0;
-    let columns = (bounds.width / TILE).ceil() as u32;
-    let rows = (bounds.height / TILE).ceil() as u32;
-    let dark = Color::from_rgb8(31, 35, 43);
-    let light = Color::from_rgb8(37, 42, 51);
+fn draw_transparency_checkerboard(frame: &mut Frame, project: &Project) {
+    /// Aseprite-style checker: measured in sprite pixels, so it zooms with the
+    /// canvas instead of staying fixed to the screen.
+    const TILE_CELLS: u32 = 8;
+    let cell_size = grid_cell_size(project.grid_config);
+    let tile = TILE_CELLS as f32 * cell_size;
+    let world_width = project.canvas_width as f32 * cell_size;
+    let world_height = project.canvas_height as f32 * cell_size;
+    let light = Color::from_rgb8(58, 64, 76);
+    let dark = Color::from_rgb8(44, 49, 59);
+
+    let columns = project.canvas_width.div_ceil(TILE_CELLS);
+    let rows = project.canvas_height.div_ceil(TILE_CELLS);
 
     for row in 0..rows {
         for column in 0..columns {
-            let x = column as f32 * TILE;
-            let y = row as f32 * TILE;
+            let x = column as f32 * tile;
+            let y = row as f32 * tile;
             frame.fill_rectangle(
                 iced::Point::new(x, y),
-                iced::Size::new(TILE, TILE),
-                if (row + column) % 2 == 0 { dark } else { light },
+                iced::Size::new((world_width - x).min(tile), (world_height - y).min(tile)),
+                if (row + column) % 2 == 0 { light } else { dark },
             );
         }
     }
