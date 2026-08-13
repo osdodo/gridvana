@@ -314,6 +314,27 @@ impl Gridvana {
                 self.resize_current_canvas();
                 Ok(Task::none())
             }
+            Message::TogglePreview => {
+                self.preview_visible = !self.preview_visible;
+                self.preview_drag = None;
+                Ok(Task::none())
+            }
+            Message::ClosePreview => {
+                self.preview_visible = false;
+                self.preview_drag = None;
+                Ok(Task::none())
+            }
+            Message::BeginPreviewDrag => {
+                if self.preview_visible {
+                    if let Some(cursor_position) = self.cursor_position {
+                        self.preview_drag = Some(super::super::PreviewDrag {
+                            start_cursor: cursor_position,
+                            start_offset: self.preview_offset,
+                        });
+                    }
+                }
+                Ok(Task::none())
+            }
             Message::MoveSelectionBy(dx, dy) => {
                 if self.move_mode_active && !self.text_entry_active() {
                     self.move_selection_by(dx, dy);
@@ -390,6 +411,7 @@ impl Gridvana {
             Message::GlobalLeftReleased => {
                 self.global_left_button_down = false;
                 self.inspector_resize = None;
+                self.preview_drag = None;
                 self.finish_timeline_drag();
                 if self.selection_box_draft.is_some() {
                     self.finalize_selection_box();
@@ -422,6 +444,12 @@ impl Gridvana {
                     } else {
                         self.inspector_width = width;
                     }
+                }
+                if let Some(drag) = self.preview_drag {
+                    self.preview_offset = iced::Point::new(
+                        drag.start_offset.x + cursor_position.x - drag.start_cursor.x,
+                        drag.start_offset.y + cursor_position.y - drag.start_cursor.y,
+                    );
                 }
                 Ok(Task::none())
             }

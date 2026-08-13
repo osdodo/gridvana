@@ -90,6 +90,12 @@ pub(super) struct InspectorResize {
     pub(super) target: InspectorPanel,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(super) struct PreviewDrag {
+    pub(super) start_cursor: Point,
+    pub(super) start_offset: Point,
+}
+
 #[derive(Debug, Clone)]
 pub(super) struct ClipboardPixel {
     pub(super) offset_x: i32,
@@ -257,6 +263,9 @@ pub struct Gridvana {
     pub(super) alt_pressed: bool,
     pub(super) zoom_modifier_pressed: bool,
     pub(super) hovered_grid_index: Option<GridIndex>,
+    pub(super) preview_visible: bool,
+    pub(super) preview_offset: Point,
+    pub(super) preview_drag: Option<PreviewDrag>,
     pub(super) move_mode_active: bool,
     pub(super) selection_indices: HashSet<GridIndex>,
     pub(super) selection_box_draft: Option<SelectionBoxDraft>,

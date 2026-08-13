@@ -5,6 +5,7 @@ use super::super::ui::{
 };
 use crate::canvas;
 use crate::i18n::tr;
+use crate::icons::{Icon, icon_button};
 use crate::types::Message;
 use gridvana_core::grid::GridIndex;
 use iced::{Element, Length, Theme, widget};
@@ -57,7 +58,8 @@ impl Gridvana {
                     && self.selection_context_menu.is_none()
                     && self.canvas_context_menu.is_none()
                     && !self.canvas_size_popover_open
-                    && self.cel_context_menu.is_none(),
+                    && self.cel_context_menu.is_none()
+                    && self.preview_drag.is_none(),
                 preview_indices,
                 preview_color,
                 eraser_preview_indices,
@@ -77,111 +79,132 @@ impl Gridvana {
             },
         );
 
-        let preview_image_panel: Element<'_, Message> = match gridvana_core::io::render_frame_rgba(
+        let preview_render = gridvana_core::io::render_frame_rgba(
             displayed_project,
             displayed_project.active_frame_position().unwrap_or(0),
-        ) {
-            Ok((preview_width, preview_height, rgba)) => {
-                let preview_image = widget::image(widget::image::Handle::from_rgba(
-                    preview_width,
-                    preview_height,
-                    rgba,
-                ))
-                .content_fit(iced::ContentFit::Contain)
-                .width(Length::Fill)
-                .height(Length::Fill);
+        )
+        .ok();
+        let preview_title = format!(
+            "{} · {} {}/{}",
+            tr("Preview", "预览"),
+            tr("Frame", "帧"),
+            displayed_project.active_frame_position().unwrap_or(0) + 1,
+            displayed_project.frames.len(),
+        );
+        let preview_offset = self.preview_offset;
+        let preview_layer: Element<'_, Message> = if self.preview_visible {
+            widget::responsive(move |size| {
+                let max_x = (size.width - PREVIEW_PANEL_SIDE).max(0.0);
+                let max_y = (size.height - PREVIEW_PANEL_SIDE).max(0.0);
+                let default_x = (size.width - PREVIEW_PANEL_SIDE - PREVIEW_PANEL_MARGIN).max(0.0);
+                let x = (default_x + preview_offset.x).clamp(0.0, max_x);
+                let y = (PREVIEW_PANEL_MARGIN + preview_offset.y).clamp(0.0, max_y);
 
-                widget::container(preview_image)
+                let preview_image_panel: Element<'_, Message> = match preview_render.as_ref() {
+                    Some((preview_width, preview_height, rgba)) => {
+                        let preview_image = widget::image(widget::image::Handle::from_rgba(
+                            *preview_width,
+                            *preview_height,
+                            rgba.clone(),
+                        ))
+                        .content_fit(iced::ContentFit::Contain)
+                        .width(Length::Fill)
+                        .height(Length::Fill);
+
+                        widget::container(preview_image)
+                            .width(Length::Fixed(PREVIEW_PANEL_SIDE))
+                            .height(Length::Fixed(PREVIEW_PANEL_SIDE))
+                            .padding(6)
+                            .style(|_| {
+                                widget::container::Style::default()
+                                    .background(OVERLAY_BACKGROUND)
+                                    .border(iced::Border {
+                                        color: BORDER_SUBTLE,
+                                        width: 1.0,
+                                        radius: 2.0.into(),
+                                    })
+                            })
+                            .into()
+                    }
+                    None => widget::container(
+                        widget::text(tr("Preview render failed", "预览渲染失败")).size(10),
+                    )
                     .width(Length::Fixed(PREVIEW_PANEL_SIDE))
                     .height(Length::Fixed(PREVIEW_PANEL_SIDE))
-                    .padding(6)
+                    .center(Length::Fill)
                     .style(|_| {
                         widget::container::Style::default()
-                            .background(OVERLAY_BACKGROUND)
+                            .background(SURFACE_BACKGROUND)
                             .border(iced::Border {
                                 color: BORDER_SUBTLE,
                                 width: 1.0,
                                 radius: 2.0.into(),
                             })
                     })
-                    .into()
-            }
-            Err(_) => widget::container(
-                widget::text(tr("Preview render failed", "预览渲染失败")).size(10),
-            )
-            .width(Length::Fixed(PREVIEW_PANEL_SIDE))
-            .height(Length::Fixed(PREVIEW_PANEL_SIDE))
-            .center(Length::Fill)
-            .style(|_| {
-                widget::container::Style::default()
-                    .background(SURFACE_BACKGROUND)
-                    .border(iced::Border {
-                        color: BORDER_SUBTLE,
-                        width: 1.0,
-                        radius: 2.0.into(),
-                    })
-            })
-            .into(),
-        };
-        let preview_title = widget::container(
-            widget::text(format!(
-                "{} · {} {}/{}",
-                tr("Preview", "预览"),
-                tr("Frame", "帧"),
-                displayed_project.active_frame_position().unwrap_or(0) + 1,
-                displayed_project.frames.len(),
-            ))
-            .size(10)
-            .color(TEXT_PRIMARY),
-        )
-        .padding([4, 6])
-        .style(|_| {
-            widget::container::Style::default()
-                .background(OVERLAY_BACKGROUND)
-                .border(iced::Border {
-                    color: BORDER_SUBTLE,
-                    width: 1.0,
-                    radius: 1.0.into(),
-                })
-        });
-        let floating_preview: Element<'_, Message> = widget::stack(vec![
-            preview_image_panel,
-            widget::container(
-                widget::column![
-                    widget::Space::new().height(Length::Fixed(6.0)),
-                    widget::row![
-                        widget::Space::new().width(Length::Fixed(6.0)),
-                        preview_title,
-                        widget::Space::new().width(Length::Fill),
-                    ],
-                    widget::Space::new().height(Length::Fill),
-                ]
+                    .into(),
+                };
+                let preview_title = widget::container(
+                    widget::text(preview_title.clone())
+                        .size(10)
+                        .color(TEXT_PRIMARY),
+                )
                 .width(Length::Fill)
-                .height(Length::Fill),
-            )
+                .padding([4, 6])
+                .style(|_| {
+                    widget::container::Style::default()
+                        .background(OVERLAY_BACKGROUND)
+                        .border(iced::Border {
+                            color: BORDER_SUBTLE,
+                            width: 1.0,
+                            radius: 1.0.into(),
+                        })
+                });
+                let drag_title = widget::mouse_area(preview_title)
+                    .on_press(Message::BeginPreviewDrag)
+                    .interaction(iced::mouse::Interaction::Grab);
+                let close_button = icon_button(Icon::CloseCircle, 12.0, 24.0, false, true)
+                    .on_press(Message::ClosePreview);
+                let floating_preview = widget::stack(vec![
+                    preview_image_panel,
+                    widget::container(
+                        widget::column![
+                            widget::Space::new().height(Length::Fixed(6.0)),
+                            widget::row![
+                                widget::Space::new().width(Length::Fixed(6.0)),
+                                drag_title,
+                                widget::Space::new().width(Length::Fill),
+                                close_button,
+                                widget::Space::new().width(Length::Fixed(4.0)),
+                            ],
+                            widget::Space::new().height(Length::Fill),
+                        ]
+                        .width(Length::Fill)
+                        .height(Length::Fill),
+                    )
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .into(),
+                ])
+                .width(Length::Fixed(PREVIEW_PANEL_SIDE))
+                .height(Length::Fixed(PREVIEW_PANEL_SIDE));
+                let floating_preview: Element<'_, Message> = widget::opaque(floating_preview);
+
+                widget::pin(floating_preview)
+                    .x(x)
+                    .y(y)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .into()
+            })
             .width(Length::Fill)
             .height(Length::Fill)
-            .into(),
-        ])
-        .width(Length::Fixed(PREVIEW_PANEL_SIDE))
-        .height(Length::Fixed(PREVIEW_PANEL_SIDE))
-        .into();
-        let preview_layer: Element<'_, Message> = widget::container(
-            widget::column![
-                widget::Space::new().height(Length::Fixed(PREVIEW_PANEL_MARGIN)),
-                widget::row![
-                    widget::Space::new().width(Length::Fill),
-                    floating_preview,
-                    widget::Space::new().width(Length::Fixed(PREVIEW_PANEL_MARGIN)),
-                ],
-                widget::Space::new().height(Length::Fill),
-            ]
-            .width(Length::Fill)
-            .height(Length::Fill),
-        )
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into();
+            .into()
+        } else {
+            widget::Space::new()
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into()
+        };
 
         let coordinate_label = self.hovered_grid_index.map_or_else(
             || "X — · Y —".to_string(),

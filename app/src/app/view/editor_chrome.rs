@@ -148,18 +148,38 @@ impl Gridvana {
                 .into(),
         };
 
-        widget::container(tool_size)
-            .padding([7, 9])
-            .style(|_| {
-                widget::container::Style::default()
-                    .background(OVERLAY_BACKGROUND)
-                    .border(iced::Border {
-                        color: BORDER_SUBTLE,
-                        width: 1.0,
-                        radius: 2.0.into(),
-                    })
-            })
-            .into()
+        let preview_toggle = icon_button(
+            if self.preview_visible {
+                Icon::EyeSlash
+            } else {
+                Icon::Eye
+            },
+            12.0,
+            24.0,
+            self.preview_visible,
+            true,
+        )
+        .on_press(Message::TogglePreview);
+
+        widget::container(
+            widget::row![
+                tool_size,
+                widget::Space::new().width(Length::Fixed(8.0)),
+                preview_toggle
+            ]
+            .align_y(iced::Alignment::Center),
+        )
+        .padding([7, 9])
+        .style(|_| {
+            widget::container::Style::default()
+                .background(OVERLAY_BACKGROUND)
+                .border(iced::Border {
+                    color: BORDER_SUBTLE,
+                    width: 1.0,
+                    radius: 2.0.into(),
+                })
+        })
+        .into()
     }
 
     pub(super) fn editor_inspector_tabs(&self) -> Element<'_, Message> {
