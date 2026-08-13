@@ -55,6 +55,8 @@ impl Gridvana {
             canvas::ViewOptions {
                 input_enabled: !self.cli_settings_open
                     && self.selection_context_menu.is_none()
+                    && self.canvas_context_menu.is_none()
+                    && !self.canvas_size_popover_open
                     && self.cel_context_menu.is_none(),
                 preview_indices,
                 preview_color,

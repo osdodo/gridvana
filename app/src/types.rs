@@ -53,7 +53,6 @@ pub enum ColorSlot {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InspectorPanel {
     Layers,
-    Canvas,
     AiAgent,
     Export,
 }
@@ -126,6 +125,10 @@ pub enum Message {
     CutPixelSelection,
     OpenSelectionContextMenu,
     CloseSelectionContextMenu,
+    OpenCanvasContextMenu,
+    CloseCanvasContextMenu,
+    ToggleCanvasSizePopover,
+    CloseCanvasSizePopover,
     TransformPixelSelectionSequence(Vec<PixelTransform>),
     CropCanvasToSelection,
     TrimCanvas,

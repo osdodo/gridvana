@@ -709,6 +709,11 @@ impl<'a> canvas::Program<crate::Message> for GridLayer<'a> {
                         ColorSlot::Background,
                     )));
                 }
+                if !tool_accepts_secondary_color(self.current_tool) {
+                    return Some(canvas::Action::publish(
+                        crate::Message::OpenCanvasContextMenu,
+                    ));
+                }
             }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Right)) => {
                 if state.painting_color_slot == Some(ColorSlot::Background) {

@@ -12,7 +12,7 @@ impl Gridvana {
     /// or the new project dialog). Used to suppress canvas keyboard
     /// shortcuts so focused text fields can handle Cmd+C/V/D etc. themselves.
     pub(super) fn text_entry_active(&self) -> bool {
-        self.cli_settings_open || self.new_project_dialog_open
+        self.cli_settings_open || self.new_project_dialog_open || self.canvas_size_popover_open
     }
 
     pub(super) fn handle_canvas_message(
@@ -171,6 +171,14 @@ impl Gridvana {
                 Ok(Task::none())
             }
             Message::DeactivateMoveSelection => {
+                if self.canvas_size_popover_open {
+                    self.canvas_size_popover_open = false;
+                    return Ok(Task::none());
+                }
+                if self.canvas_context_menu.is_some() {
+                    self.canvas_context_menu = None;
+                    return Ok(Task::none());
+                }
                 if self.about_dialog_open {
                     self.about_dialog_open = false;
                     self.sync_terminal_webview_visibility();
@@ -261,16 +269,35 @@ impl Gridvana {
                 self.selection_context_menu = None;
                 Ok(Task::none())
             }
+            Message::OpenCanvasContextMenu => {
+                self.canvas_context_menu = self.cursor_position;
+                Ok(Task::none())
+            }
+            Message::CloseCanvasContextMenu => {
+                self.canvas_context_menu = None;
+                Ok(Task::none())
+            }
+            Message::ToggleCanvasSizePopover => {
+                self.canvas_context_menu = None;
+                self.canvas_size_popover_open = !self.canvas_size_popover_open;
+                Ok(Task::none())
+            }
+            Message::CloseCanvasSizePopover => {
+                self.canvas_size_popover_open = false;
+                Ok(Task::none())
+            }
             Message::TransformPixelSelectionSequence(transforms) => {
                 self.selection_context_menu = None;
                 self.transform_pixel_selection_sequence(&transforms);
                 Ok(Task::none())
             }
             Message::CropCanvasToSelection => {
+                self.canvas_context_menu = None;
                 self.crop_canvas_to_selection();
                 Ok(Task::none())
             }
             Message::TrimCanvas => {
+                self.canvas_context_menu = None;
                 self.trim_current_canvas();
                 Ok(Task::none())
             }
@@ -283,6 +310,7 @@ impl Gridvana {
                 Ok(Task::none())
             }
             Message::ResizeCurrentCanvas => {
+                self.canvas_size_popover_open = false;
                 self.resize_current_canvas();
                 Ok(Task::none())
             }

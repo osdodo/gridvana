@@ -231,6 +231,8 @@ pub struct Gridvana {
     pub(super) timeline_cel_clipboard: Option<TimelineCelClipboard>,
     pub(super) cel_context_menu: Option<CelPosition>,
     pub(super) selection_context_menu: Option<Point>,
+    pub(super) canvas_context_menu: Option<Point>,
+    pub(super) canvas_size_popover_open: bool,
     pub(super) app_menu_open: bool,
     pub(super) current_stroke: Option<StrokeBuilder>,
     pub(super) current_shape: Option<ShapeDraft>,

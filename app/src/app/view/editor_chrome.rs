@@ -192,11 +192,6 @@ impl Gridvana {
                 .width(Length::FillPortion(1))
                 .height(Length::Fixed(34.0))
                 .style(tab_style(self.inspector_panel == InspectorPanel::Layers)),
-            widget::button(tab_label(tr("Canvas", "画布")))
-                .on_press(Message::SetInspectorPanel(InspectorPanel::Canvas))
-                .width(Length::FillPortion(1))
-                .height(Length::Fixed(34.0))
-                .style(tab_style(self.inspector_panel == InspectorPanel::Canvas)),
             widget::button(tab_label(tr("Export", "导出")))
                 .on_press(Message::SetInspectorPanel(InspectorPanel::Export))
                 .width(Length::FillPortion(1))
@@ -222,9 +217,6 @@ impl Gridvana {
         }
         if self.inspector_panel == InspectorPanel::Export {
             return self.editor_export_inspector();
-        }
-        if self.inspector_panel == InspectorPanel::Canvas {
-            return self.editor_canvas_sidebar();
         }
 
         let tabs = self.editor_inspector_tabs();
@@ -591,102 +583,6 @@ impl Gridvana {
             .into()
     }
 
-    fn editor_canvas_sidebar(&self) -> Element<'_, Message> {
-        let square_grid = matches!(
-            self.project.grid_config,
-            gridvana_core::model::GridConfig::Square { .. }
-        );
-        let action_button = |label: &'static str, message: Message| {
-            widget::button(widget::text(label).size(10))
-                .on_press(message)
-                .padding([6, 7])
-                .width(Length::Fill)
-                .style(|theme: &Theme, status| compact_action_button_style(theme, status, false))
-        };
-        let square_grid_action = |label: &'static str, message: Message| {
-            let button = widget::button(widget::text(label).size(10))
-                .padding([6, 7])
-                .width(Length::Fill)
-                .style(|theme: &Theme, status| compact_action_button_style(theme, status, false));
-            if square_grid {
-                button.on_press(message)
-            } else {
-                button
-            }
-        };
-        let section_label =
-            |label: &'static str| widget::text(label).size(11).color(TEXT_SECONDARY);
-
-        let canvas_size = widget::column![
-            widget::row![
-                widget::text_input(tr("Width", "宽"), &self.resize_canvas_width)
-                    .on_input(Message::UpdateResizeCanvasWidth)
-                    .on_submit(Message::ResizeCurrentCanvas)
-                    .padding([6, 7])
-                    .size(10)
-                    .style(text_input_style)
-                    .width(Length::FillPortion(1)),
-                widget::text_input(tr("Height", "高"), &self.resize_canvas_height)
-                    .on_input(Message::UpdateResizeCanvasHeight)
-                    .on_submit(Message::ResizeCurrentCanvas)
-                    .padding([6, 7])
-                    .size(10)
-                    .style(text_input_style)
-                    .width(Length::FillPortion(1)),
-            ]
-            .spacing(4),
-            action_button(
-                tr("Apply canvas size", "应用画布尺寸"),
-                Message::ResizeCurrentCanvas
-            ),
-            widget::row![
-                square_grid_action(
-                    tr("Crop to selection", "裁到选区"),
-                    Message::CropCanvasToSelection
-                ),
-                square_grid_action("Trim", Message::TrimCanvas),
-            ]
-            .spacing(4),
-        ]
-        .spacing(4);
-
-        let sidebar_content = widget::column![
-            widget::text(tr("Canvas", "画布"))
-                .size(13)
-                .color(TEXT_PRIMARY),
-            section_label(tr("Size", "尺寸")),
-            canvas_size,
-            section_label(tr("Selection", "选区")),
-            widget::text(format!(
-                "{} {}",
-                self.selection_indices.len(),
-                tr("grid cells", "个网格单元")
-            ))
-            .size(10)
-            .color(TEXT_MUTED),
-            widget::text(tr(
-                "Shift adds, Alt subtracts. Right-click a selection for actions.",
-                "Shift 加选，Alt 减选。在选区上右键查看操作。"
-            ))
-            .size(10)
-            .color(TEXT_MUTED),
-        ]
-        .spacing(8);
-
-        let content = widget::column![
-            self.editor_inspector_tabs(),
-            widget::rule::horizontal(1),
-            widget::container(widget::scrollable(sidebar_content).height(Length::Fill)).padding(12),
-        ]
-        .spacing(0);
-
-        widget::container(content)
-            .width(Length::Fixed(self.inspector_width))
-            .height(Length::Fill)
-            .style(panel_style)
-            .into()
-    }
-
     pub(super) fn selection_context_menu_overlay(&self) -> Option<Element<'_, Message>> {
         let anchor = self.selection_context_menu?;
         let square_grid = matches!(
@@ -745,79 +641,117 @@ impl Gridvana {
             ),
         ];
         let menu_width = 188.0;
-        let menu_height = 26.0 * entries.len() as f32 + 8.0;
 
-        let positioned_menu = widget::responsive(move |size| {
-            let items = entries
-                .iter()
-                .map(|(label, shortcut, message)| {
-                    let enabled = message.is_some();
-                    widget::button(
-                        widget::row![
-                            widget::text(*label).size(11).color(if enabled {
-                                TEXT_PRIMARY
-                            } else {
-                                TEXT_MUTED
-                            }),
-                            widget::Space::new().width(Length::Fill),
-                            widget::text(*shortcut).size(10).color(TEXT_MUTED),
-                        ]
-                        .align_y(iced::Alignment::Center),
-                    )
-                    .on_press_maybe(message.clone())
-                    .padding([5, 10])
-                    .width(Length::Fill)
-                    .style(|theme: &Theme, status| {
-                        let mut style = widget::button::text(theme, status);
-                        if matches!(status, widget::button::Status::Hovered) {
-                            style.background =
-                                Some(iced::Color::from_rgba(1.0, 1.0, 1.0, 0.07).into());
-                        }
-                        style.border = iced::Border {
-                            color: iced::Color::TRANSPARENT,
-                            width: 0.0,
-                            radius: 0.0.into(),
-                        };
-                        style
-                    })
-                    .into()
-                })
-                .collect::<Vec<Element<'static, Message>>>();
-            let menu = widget::container(widget::column(items).spacing(0))
-                .width(Length::Fixed(menu_width))
-                .padding(4)
-                .style(|_theme: &Theme| {
-                    widget::container::Style::default()
-                        .background(OVERLAY_BACKGROUND)
-                        .border(iced::Border {
-                            color: BORDER_SUBTLE,
-                            width: 1.0,
-                            radius: 3.0.into(),
-                        })
-                });
+        Some(context_menu_overlay(
+            anchor,
+            menu_width,
+            entries,
+            Message::CloseSelectionContextMenu,
+        ))
+    }
 
+    pub(super) fn canvas_context_menu_overlay(&self) -> Option<Element<'_, Message>> {
+        let anchor = self.canvas_context_menu?;
+        let square_grid = matches!(
+            self.project.grid_config,
+            gridvana_core::model::GridConfig::Square { .. }
+        );
+
+        let entries: Vec<(&'static str, &'static str, Option<Message>)> = vec![
+            (
+                tr("Crop to selection", "裁到选区"),
+                "",
+                (square_grid && !self.selection_indices.is_empty())
+                    .then_some(Message::CropCanvasToSelection),
+            ),
+            (
+                tr("Trim transparent edges", "裁去透明边"),
+                "",
+                square_grid.then_some(Message::TrimCanvas),
+            ),
+            (
+                tr("Canvas size…", "画布尺寸…"),
+                "",
+                Some(Message::ToggleCanvasSizePopover),
+            ),
+        ];
+
+        Some(context_menu_overlay(
+            anchor,
+            196.0,
+            entries,
+            Message::CloseCanvasContextMenu,
+        ))
+    }
+
+    pub(super) fn canvas_size_popover_overlay(&self) -> Option<Element<'_, Message>> {
+        if !self.canvas_size_popover_open {
+            return None;
+        }
+
+        let card = widget::container(
             widget::column![
-                widget::Space::new().height(Length::Fixed(
-                    anchor.y.min((size.height - menu_height).max(0.0))
-                )),
+                widget::text(tr("Canvas size", "画布尺寸"))
+                    .size(12)
+                    .color(TEXT_PRIMARY),
                 widget::row![
-                    widget::Space::new().width(Length::Fixed(
-                        anchor.x.min((size.width - menu_width).max(0.0))
-                    )),
-                    menu,
-                    widget::Space::new().width(Length::Fill),
-                ],
-                widget::Space::new().height(Length::Fill),
+                    widget::text_input(tr("Width", "宽"), &self.resize_canvas_width)
+                        .on_input(Message::UpdateResizeCanvasWidth)
+                        .on_submit(Message::ResizeCurrentCanvas)
+                        .padding([6, 7])
+                        .size(10)
+                        .style(text_input_style)
+                        .width(Length::FillPortion(1)),
+                    widget::text_input(tr("Height", "高"), &self.resize_canvas_height)
+                        .on_input(Message::UpdateResizeCanvasHeight)
+                        .on_submit(Message::ResizeCurrentCanvas)
+                        .padding([6, 7])
+                        .size(10)
+                        .style(text_input_style)
+                        .width(Length::FillPortion(1)),
+                ]
+                .spacing(6),
+                widget::row![
+                    widget::button(widget::text(tr("Cancel", "取消")).size(10))
+                        .on_press(Message::CloseCanvasSizePopover)
+                        .padding([6, 7])
+                        .width(Length::FillPortion(1))
+                        .style(|theme: &Theme, status| {
+                            compact_action_button_style(theme, status, false)
+                        }),
+                    widget::button(widget::text(tr("Apply", "应用")).size(10))
+                        .on_press(Message::ResizeCurrentCanvas)
+                        .padding([6, 7])
+                        .width(Length::FillPortion(1))
+                        .style(|theme: &Theme, status| {
+                            compact_action_button_style(theme, status, true)
+                        }),
+                ]
+                .spacing(6),
             ]
-            .into()
-        })
-        .width(Length::Fill)
-        .height(Length::Fill);
+            .spacing(8),
+        )
+        .width(Length::Fixed(220.0))
+        .padding(12)
+        .style(|_theme: &Theme| {
+            widget::container::Style::default()
+                .background(OVERLAY_BACKGROUND)
+                .border(iced::Border {
+                    color: BORDER_SUBTLE,
+                    width: 1.0,
+                    radius: 3.0.into(),
+                })
+        });
 
         Some(widget::opaque(
-            widget::mouse_area(positioned_menu)
-                .on_press(Message::CloseSelectionContextMenu)
-                .on_right_press(Message::CloseSelectionContextMenu),
+            widget::mouse_area(
+                widget::container(card)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .center(Length::Fill),
+            )
+            .on_press(Message::CloseCanvasSizePopover)
+            .on_right_press(Message::CloseCanvasSizePopover),
         ))
     }
 
@@ -878,14 +812,19 @@ impl Gridvana {
                 })
                 .size(10)
                 .color(TEXT_MUTED),
-                widget::text(format!(
-                    "{} {} × {}",
-                    tr("Grid", "网格"),
-                    displayed_project.canvas_width,
-                    displayed_project.canvas_height,
-                ))
-                .size(10)
-                .color(TEXT_MUTED),
+                widget::button(
+                    widget::text(format!(
+                        "{} {} × {} ▾",
+                        tr("Grid", "网格"),
+                        displayed_project.canvas_width,
+                        displayed_project.canvas_height,
+                    ))
+                    .size(10)
+                    .color(TEXT_MUTED)
+                )
+                .on_press(Message::ToggleCanvasSizePopover)
+                .padding(0)
+                .style(widget::button::text),
                 widget::text(active_tool_name.to_string())
                     .size(10)
                     .color(TEXT_MUTED),
@@ -902,6 +841,87 @@ impl Gridvana {
         .style(panel_style)
         .into()
     }
+}
+
+fn context_menu_overlay(
+    anchor: iced::Point,
+    menu_width: f32,
+    entries: Vec<(&'static str, &'static str, Option<Message>)>,
+    close: Message,
+) -> Element<'static, Message> {
+    let menu_height = 26.0 * entries.len() as f32 + 8.0;
+
+    let positioned_menu = widget::responsive(move |size| {
+        let items = entries
+            .iter()
+            .map(|(label, shortcut, message)| {
+                let enabled = message.is_some();
+                widget::button(
+                    widget::row![
+                        widget::text(*label).size(11).color(if enabled {
+                            TEXT_PRIMARY
+                        } else {
+                            TEXT_MUTED
+                        }),
+                        widget::Space::new().width(Length::Fill),
+                        widget::text(*shortcut).size(10).color(TEXT_MUTED),
+                    ]
+                    .align_y(iced::Alignment::Center),
+                )
+                .on_press_maybe(message.clone())
+                .padding([5, 10])
+                .width(Length::Fill)
+                .style(|theme: &Theme, status| {
+                    let mut style = widget::button::text(theme, status);
+                    if matches!(status, widget::button::Status::Hovered) {
+                        style.background = Some(iced::Color::from_rgba(1.0, 1.0, 1.0, 0.07).into());
+                    }
+                    style.border = iced::Border {
+                        color: iced::Color::TRANSPARENT,
+                        width: 0.0,
+                        radius: 0.0.into(),
+                    };
+                    style
+                })
+                .into()
+            })
+            .collect::<Vec<Element<'static, Message>>>();
+        let menu = widget::container(widget::column(items).spacing(0))
+            .width(Length::Fixed(menu_width))
+            .padding(4)
+            .style(|_theme: &Theme| {
+                widget::container::Style::default()
+                    .background(OVERLAY_BACKGROUND)
+                    .border(iced::Border {
+                        color: BORDER_SUBTLE,
+                        width: 1.0,
+                        radius: 3.0.into(),
+                    })
+            });
+
+        widget::column![
+            widget::Space::new().height(Length::Fixed(
+                anchor.y.min((size.height - menu_height).max(0.0))
+            )),
+            widget::row![
+                widget::Space::new().width(Length::Fixed(
+                    anchor.x.min((size.width - menu_width).max(0.0))
+                )),
+                menu,
+                widget::Space::new().width(Length::Fill),
+            ],
+            widget::Space::new().height(Length::Fill),
+        ]
+        .into()
+    })
+    .width(Length::Fill)
+    .height(Length::Fill);
+
+    widget::opaque(
+        widget::mouse_area(positioned_menu)
+            .on_press(close.clone())
+            .on_right_press(close),
+    )
 }
 
 fn inspector_section_heading<'a>(
