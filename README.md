@@ -1,9 +1,11 @@
-# Gridvana
+<h1 align="center">
+  <img src="app/assets/logo-readme.png" alt="Gridvana logo" width="28">
+  Gridvana
+</h1>
 
-Gridvana is a grid-based pixel art and animation editor, written in Rust with
-[`iced`](https://github.com/iced-rs/iced). It does frame-by-frame animation on a
-square pixel grid, and exposes its editing operations over MCP so AI agents can
-draw alongside you.
+Gridvana is a collaborative pixel art and animation editor written in Rust.
+Humans and AI agents share the same square pixel grid, creating and revising
+frame-by-frame artwork together through MCP.
 
 ![Gridvana](screenshots/1.jpg)
 
@@ -16,9 +18,9 @@ draw alongside you.
   handles, and floating pasted selections.
 - **Animation** — timeline with frames, layers, tags, and a live preview panel.
 - **Export** — PNG, animated GIF, and sprite sheets.
-- **AI agent integration** — a built-in MCP server plus an embedded terminal, so
-  an agent can start an edit session, preview operations, and commit them into
-  your undo history.
+- **Human-AI collaboration** — a built-in MCP server plus an embedded terminal
+  let AI agents edit the same project as you: they can start an edit session,
+  preview operations, and commit changes into the shared undo history.
 
 ## Building
 
@@ -28,46 +30,36 @@ cargo test --workspace
 cargo run --package app
 ```
 
-## macOS packaging
+## Opening Gridvana on macOS
 
-Install Rust, the Xcode Command Line Tools, and `cargo-bundle`:
+macOS may report that Apple cannot verify Gridvana for malicious software. If
+you downloaded Gridvana from a source you trust:
 
-```bash
-xcode-select -p
-cargo install cargo-bundle --locked
-```
+1. Find `Gridvana.app` in Finder.
+2. Control-click the app and choose **Open**.
+3. Click **Open** again in the confirmation dialog.
 
-Then from the project root:
+If **Open** is not available, try launching Gridvana once, then open **System
+Settings > Privacy & Security**, find the message that Gridvana was blocked,
+and click **Open Anyway**.
 
-```bash
-cargo fetch
-cargo test --workspace
-cargo build --release --package app
-cargo bundle --release --package app --format osx
-codesign --force --deep --sign - target/release/bundle/osx/Gridvana.app
-```
-
-The resulting app lives at `target/release/bundle/osx/Gridvana.app`:
+As a last resort, move Gridvana to the Applications folder and run:
 
 ```bash
-open target/release/bundle/osx/Gridvana.app
+xattr -dr com.apple.quarantine /Applications/Gridvana.app
+open /Applications/Gridvana.app
 ```
 
-The icon comes from `app/assets/logo.png` and the bundle settings live in
-`app/Cargo.toml`. A plain `cargo build --release` only produces a bare
-executable with no icon, so use `cargo bundle` to get a proper `.app`.
-
-The `codesign` command above uses ad-hoc signing, which is fine for local
-development. Distribution still requires signing with an Apple Developer
-certificate and notarizing the app.
+Only remove the quarantine attribute when you trust the download source. There
+is no need to disable Gatekeeper globally.
 
 ## Project layout
 
 | Crate   | Description                                                        |
 | ------- | ------------------------------------------------------------------ |
 | `core/` | Document model, grid system, compositing, transforms, persistence |
-| `app/`  | The `iced` GUI application                                          |
-| `mcp/`  | MCP server exposing the editing operations to AI agents             |
+| `app/`  | The desktop GUI application                                         |
+| `mcp/`  | MCP server enabling AI agents to edit the shared project             |
 
 ## License
 
