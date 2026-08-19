@@ -1,4 +1,4 @@
-name: Release macOS app
+name: Release app
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-macos:
     strategy:
       fail-fast: false
       matrix:
@@ -51,8 +51,42 @@ jobs:
           name: Gridvana-macos-${{ matrix.arch }}
           path: Gridvana-${{ github.ref_name }}-macos-${{ matrix.arch }}.zip
 
+  build-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-${{ matrix.arch }}
+
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Build app
+        run: cargo build --release --package app
+
+      - name: Create archive
+        shell: pwsh
+        run: |
+          Compress-Archive -Path target/release/Gridvana.exe `
+            -DestinationPath "Gridvana-${{ github.ref_name }}-windows-${{ matrix.arch }}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Gridvana-windows-${{ matrix.arch }}
+          path: Gridvana-${{ github.ref_name }}-windows-${{ matrix.arch }}.zip
+
   release:
-    needs: build
+    needs: [build-macos, build-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
