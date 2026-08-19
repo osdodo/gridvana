@@ -14,7 +14,7 @@ const TERMINAL_BOOTSTRAP: &str = r#"
     convertEol: false,
     cursorBlink: true,
     cursorStyle: 'block',
-    fontFamily: 'SFMono-Regular, SF Mono, Menlo, Monaco, PingFang SC, Hiragino Sans GB, Microsoft YaHei UI, Noto Sans Mono CJK SC, monospace',
+    fontFamily: '"Cascadia Mono", "Cascadia Code", Consolas, SFMono-Regular, "SF Mono", Menlo, Monaco, "Noto Sans Mono CJK SC", "Sarasa Mono SC", "Microsoft YaHei UI", "PingFang SC", "Hiragino Sans GB", monospace',
     fontSize: 13,
     fontWeight: '400',
     letterSpacing: 0,
@@ -147,7 +147,13 @@ mod tests {
     fn embeds_xterm_with_cjk_font_fallbacks() {
         let html = terminal_html();
         assert!(html.contains("new Terminal"));
+        assert!(html.contains("Cascadia Mono"));
+        assert!(html.contains("Consolas"));
         assert!(html.contains("PingFang SC"));
+        assert!(
+            html.find("Consolas").unwrap() < html.find("Microsoft YaHei UI").unwrap(),
+            "a monospace font must take precedence over proportional CJK fallbacks"
+        );
         assert!(html.contains("TextDecoder('utf-8')"));
         assert!(html.contains("body{box-sizing:border-box;padding:8px}"));
     }

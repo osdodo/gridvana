@@ -429,7 +429,7 @@ fn codex_launch_spec_with_home(
         "-c".to_string(),
         format!(
             "developer_instructions={}",
-            toml_string(GRIDVANA_AGENT_INSTRUCTIONS)
+            toml_command_line_string(GRIDVANA_AGENT_INSTRUCTIONS)
         ),
     ];
     if !config.codex.profile.trim().is_empty() {
@@ -519,6 +519,10 @@ fn collect_table_keys(value: Option<&toml::Value>, names: &mut BTreeSet<String>)
 
 fn toml_string(value: &str) -> String {
     toml::Value::String(value.to_string()).to_string()
+}
+
+fn toml_command_line_string(value: &str) -> String {
+    serde_json::to_string(value).expect("strings always serialize")
 }
 
 fn claude_launch_spec(
@@ -1003,12 +1007,22 @@ mod tests {
         assert!(spec.args.iter().any(|argument| {
             argument.contains("gridvana={url=\"http://127.0.0.1:51109/mcp\"}")
         }));
-        assert!(spec.args.iter().any(|argument| {
-            argument.starts_with("developer_instructions=")
-                && argument.contains("currently open Gridvana project")
-                && argument.contains("resize_canvas")
-                && !argument.contains("one replace_project operation")
-        }));
+        let instructions_override = spec
+            .args
+            .iter()
+            .find(|argument| argument.starts_with("developer_instructions="))
+            .unwrap();
+        assert!(instructions_override.contains("currently open Gridvana project"));
+        assert!(instructions_override.contains("resize_canvas"));
+        assert!(!instructions_override.contains("one replace_project operation"));
+        assert!(!instructions_override.contains(['\r', '\n']));
+        assert!(instructions_override.contains("\\n"));
+
+        let parsed: toml::Value = instructions_override.parse().unwrap();
+        assert_eq!(
+            parsed["developer_instructions"].as_str(),
+            Some(GRIDVANA_AGENT_INSTRUCTIONS)
+        );
         assert!(
             spec.args
                 .windows(2)

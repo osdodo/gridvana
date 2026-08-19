@@ -19,6 +19,11 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 const AUTOSAVE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
+// Batch PTY output so xterm does not render partial frames from a single TUI redraw.
+#[cfg(target_os = "windows")]
+const TERMINAL_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(50);
+#[cfg(not(target_os = "windows"))]
+const TERMINAL_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(16);
 
 fn recovery_file_path() -> PathBuf {
     dirs::data_local_dir()
@@ -372,10 +377,8 @@ impl Gridvana {
         );
 
         if self.terminal_session.is_some() {
-            subscriptions.push(
-                iced::time::every(std::time::Duration::from_millis(16))
-                    .map(|_| Message::PollCliTerminal),
-            );
+            subscriptions
+                .push(iced::time::every(TERMINAL_POLL_INTERVAL).map(|_| Message::PollCliTerminal));
         }
 
         #[cfg(target_os = "macos")]
