@@ -11,6 +11,26 @@ use iced::Task;
 
 impl Gridvana {
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        if let Message::BeginWindowDrag = message {
+            self.app_menu_open = false;
+            return iced::window::oldest().and_then(iced::window::drag);
+        }
+
+        if let Message::ToggleWindowMaximized = message {
+            self.app_menu_open = false;
+            return iced::window::oldest().and_then(iced::window::toggle_maximize);
+        }
+
+        if let Message::MinimizeWindow = message {
+            self.app_menu_open = false;
+            return iced::window::oldest()
+                .and_then(|window_id| iced::window::minimize(window_id, true));
+        }
+
+        if let Message::ExitApplication = message {
+            return iced::exit();
+        }
+
         if let Message::PollNativeMenu = message {
             if let Some(message) = self.native_menu.poll_message() {
                 return self.update(message);

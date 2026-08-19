@@ -16,6 +16,10 @@ impl Gridvana {
                 self.app_menu_open = !self.app_menu_open;
                 Ok(Task::none())
             }
+            Message::CloseAppMenu => {
+                self.app_menu_open = false;
+                Ok(Task::none())
+            }
             Message::OpenAbout => {
                 self.app_menu_open = false;
                 self.cli_settings_open = false;

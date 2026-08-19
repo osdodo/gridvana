@@ -37,7 +37,19 @@ impl Gridvana {
             self.editor_main_content(main_workspace, bottom_panel, status_bar)
         };
 
+        #[cfg(windows)]
+        let base = widget::column![self.window_title_bar(), base]
+            .spacing(0)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into();
+
         let mut layers = vec![base];
+
+        #[cfg(windows)]
+        if let Some(app_menu) = self.app_menu_overlay() {
+            layers.push(app_menu);
+        }
 
         if let Some(cel_context_menu) = self.cel_context_menu_overlay() {
             layers.push(cel_context_menu);

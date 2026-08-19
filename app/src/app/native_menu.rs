@@ -1,3 +1,4 @@
+#[cfg(target_os = "macos")]
 use crate::i18n::tr;
 use crate::types::Message;
 

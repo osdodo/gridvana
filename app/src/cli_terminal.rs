@@ -638,8 +638,9 @@ impl TerminalSession {
                 )
             })?;
 
-        let mut command = CommandBuilder::new(&spec.program);
-        command.args(&spec.args);
+        let (program, args) = windows_launch_command(spec);
+        let mut command = CommandBuilder::new(&program);
+        command.args(&args);
         command.cwd(&spec.working_directory);
         for (key, value) in &spec.env {
             command.env(key, value);
@@ -727,6 +728,75 @@ impl TerminalSession {
     }
 }
 
+#[cfg(not(windows))]
+fn windows_launch_command(spec: &LaunchSpec) -> (String, Vec<String>) {
+    (spec.program.clone(), spec.args.clone())
+}
+
+#[cfg(windows)]
+fn windows_launch_command(spec: &LaunchSpec) -> (String, Vec<String>) {
+    let configured = spec.program.trim();
+    let configured_path = Path::new(configured);
+    let script = if matches!(
+        configured_path.extension().and_then(OsStr::to_str),
+        Some("cmd" | "bat" | "ps1")
+    ) {
+        Some(configured_path.to_path_buf())
+    } else {
+        find_windows_script(configured, spec.env.get("PATH").map(OsStr::new))
+    };
+
+    let Some(script) = script else {
+        return (configured.to_string(), spec.args.clone());
+    };
+
+    let script = script.to_string_lossy().into_owned();
+    let extension = Path::new(&script)
+        .extension()
+        .and_then(OsStr::to_str)
+        .unwrap_or_default();
+    if extension.eq_ignore_ascii_case("ps1") {
+        let mut args = vec![
+            "-NoProfile".to_string(),
+            "-ExecutionPolicy".to_string(),
+            "Bypass".to_string(),
+            "-File".to_string(),
+            script,
+        ];
+        args.extend(spec.args.clone());
+        ("powershell.exe".to_string(), args)
+    } else {
+        let mut args = vec!["/d".to_string(), "/c".to_string(), script];
+        args.extend(spec.args.clone());
+        let command_processor = std::env::var_os("ComSpec")
+            .filter(|path| !path.is_empty())
+            .map(|path| path.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "cmd.exe".to_string());
+        (command_processor, args)
+    }
+}
+
+#[cfg(windows)]
+fn find_windows_script(program: &str, path: Option<&OsStr>) -> Option<PathBuf> {
+    let configured = Path::new(program);
+    let candidates = if configured.is_absolute() || configured.components().count() > 1 {
+        vec![configured.to_path_buf()]
+    } else {
+        path.map(std::env::split_paths)
+            .into_iter()
+            .flatten()
+            .map(|directory| directory.join(configured))
+            .collect()
+    };
+
+    candidates.into_iter().find_map(|candidate| {
+        ["cmd", "bat", "ps1"].into_iter().find_map(|extension| {
+            let script = candidate.with_extension(extension);
+            script.is_file().then_some(script)
+        })
+    })
+}
+
 impl Drop for TerminalSession {
     fn drop(&mut self) {
         let _ = self.child.kill();
@@ -739,12 +809,12 @@ impl Drop for TerminalSession {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(windows)]
+    use super::windows_launch_command;
     use super::{
         CliAgent, CliConfig, GRIDVANA_AGENT_INSTRUCTIONS, LaunchSpec, TerminalSession,
         cli_search_paths, codex_launch_spec_with_home, load_from, mcp_agent_prompt, save_to,
     };
-    use std::ffi::OsStr;
-
     #[test]
     fn cli_config_round_trips() {
         let root =
@@ -825,7 +895,8 @@ mod tests {
     #[test]
     fn cli_path_keeps_inherited_entries_and_adds_user_install_locations() {
         let home = std::path::Path::new("/Users/gridvana-test");
-        let paths = cli_search_paths(Some(OsStr::new("/usr/bin:/bin")), Some(home));
+        let inherited = std::env::join_paths(["/usr/bin", "/bin"]).unwrap();
+        let paths = cli_search_paths(Some(&inherited), Some(home));
 
         assert_eq!(paths[0], std::path::PathBuf::from("/usr/bin"));
         assert_eq!(paths[1], std::path::PathBuf::from("/bin"));
@@ -834,6 +905,86 @@ mod tests {
         assert!(paths.contains(&home.join(".volta/bin")));
         #[cfg(target_os = "macos")]
         assert!(paths.contains(&std::path::PathBuf::from("/opt/homebrew/bin")));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_npm_command_shim_uses_cmd_instead_of_extensionless_script() {
+        let root = std::env::temp_dir().join(format!(
+            "gridvana-windows-command-test-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("codex"), "#!/bin/sh\n").unwrap();
+        let shim = root.join("codex.cmd");
+        std::fs::write(&shim, "@echo off\r\n").unwrap();
+        let spec = LaunchSpec {
+            program: "codex".to_string(),
+            args: vec!["--version".to_string()],
+            env: std::collections::HashMap::from([(
+                "PATH".to_string(),
+                root.to_string_lossy().into_owned(),
+            )]),
+            working_directory: root.clone(),
+            temporary_files: Vec::new(),
+        };
+
+        let (program, args) = windows_launch_command(&spec);
+
+        assert!(program.to_ascii_lowercase().ends_with("cmd.exe"));
+        assert_eq!(args[0..2], ["/d", "/c"]);
+        assert_eq!(std::path::Path::new(&args[2]), shim);
+        assert_eq!(args[3], "--version");
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_pty_executes_cmd_shim() {
+        let root =
+            std::env::temp_dir().join(format!("gridvana-windows-pty-test-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("codex"), "#!/bin/sh\n").unwrap();
+        std::fs::write(
+            root.join("codex.cmd"),
+            "@echo off\r\necho gridvana-wrapper-ok %1\r\n",
+        )
+        .unwrap();
+        let mut environment = super::cli_environment();
+        environment.insert("PATH".to_string(), root.to_string_lossy().into_owned());
+        let spec = LaunchSpec {
+            program: "codex".to_string(),
+            args: vec!["--version".to_string()],
+            env: environment,
+            working_directory: root.clone(),
+            temporary_files: Vec::new(),
+        };
+        let mut session = TerminalSession::start_pty(CliAgent::Codex, &spec).unwrap();
+        let mut output = Vec::new();
+        let mut answered_cursor_query = false;
+        for _ in 0..100 {
+            output.extend(session.drain_output().into_iter().flatten());
+            if !answered_cursor_query && output.windows(4).any(|bytes| bytes == b"\x1b[6n") {
+                session.write(b"\x1b[1;1R").unwrap();
+                answered_cursor_query = true;
+            }
+            if session.try_wait().unwrap().is_some() {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+                output.extend(session.drain_output().into_iter().flatten());
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+
+        let output = String::from_utf8_lossy(&output);
+        assert!(
+            output.contains("gridvana-wrapper-ok --version"),
+            "unexpected terminal output: {output:?}"
+        );
+
+        drop(session);
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

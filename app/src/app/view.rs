@@ -7,3 +7,5 @@ mod editor_export;
 mod editor_timeline;
 mod settings;
 mod start;
+#[cfg(windows)]
+mod title_bar;

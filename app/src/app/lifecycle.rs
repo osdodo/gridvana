@@ -224,6 +224,33 @@ impl Gridvana {
             {
                 match key {
                     Key::Named(Named::Escape) => return Some(Message::DeactivateMoveSelection),
+                    #[cfg(not(target_os = "macos"))]
+                    Key::Character(c)
+                        if c.as_str().eq_ignore_ascii_case("n")
+                            && modifiers.contains(Modifiers::COMMAND) =>
+                    {
+                        return Some(Message::OpenNewProjectDialog);
+                    }
+                    #[cfg(not(target_os = "macos"))]
+                    Key::Character(c)
+                        if c.as_str().eq_ignore_ascii_case("o")
+                            && modifiers.contains(Modifiers::COMMAND) =>
+                    {
+                        return Some(Message::OpenProject);
+                    }
+                    #[cfg(not(target_os = "macos"))]
+                    Key::Character(c)
+                        if c.as_str().eq_ignore_ascii_case("s")
+                            && modifiers.contains(Modifiers::COMMAND) =>
+                    {
+                        return Some(Message::SaveProject);
+                    }
+                    #[cfg(not(target_os = "macos"))]
+                    Key::Character(c)
+                        if c.as_str() == "," && modifiers.contains(Modifiers::COMMAND) =>
+                    {
+                        return Some(Message::OpenCliSettings);
+                    }
                     Key::Character(c)
                         if c.as_str().eq_ignore_ascii_case("a")
                             && modifiers.contains(Modifiers::COMMAND) =>

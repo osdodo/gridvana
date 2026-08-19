@@ -122,6 +122,7 @@ dependencies = [
  "serde",
  "serde_json",
  "toml",
+ "windows 0.61.3",
 ]
 
 [[package]]
