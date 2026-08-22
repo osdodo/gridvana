@@ -5,7 +5,6 @@ use iced::{Element, Length, widget};
 impl Gridvana {
     pub fn view(&self) -> Element<'_, Message> {
         let base: Element<'_, Message> = if self.has_visible_canvas() {
-            let active_tool_name = self.active_tool_name();
             let shape_preview_hint = self.shape_preview_hint();
             let selection_display_indices = self.selection_display_indices();
 
@@ -15,7 +14,7 @@ impl Gridvana {
             let main_workspace =
                 self.editor_main_workspace(tool_rail, canvas_with_preview, inspector);
             let bottom_panel = self.editor_bottom_panel();
-            let status_bar = self.editor_status_bar(active_tool_name);
+            let status_bar = self.editor_status_bar();
             let main_content = self.editor_main_content(main_workspace, bottom_panel, status_bar);
             let floating_hint_layer =
                 self.editor_floating_hint_layer(shape_preview_hint.as_deref());
@@ -26,13 +25,12 @@ impl Gridvana {
                 .clip(true)
                 .into()
         } else {
-            let active_tool_name = self.active_tool_name();
             let tool_rail = self.editor_tool_rail();
             let empty_canvas = self.editor_empty_canvas();
             let inspector = self.editor_inspector();
             let main_workspace = self.editor_main_workspace(tool_rail, empty_canvas, inspector);
             let bottom_panel = self.editor_empty_bottom_panel();
-            let status_bar = self.editor_status_bar(active_tool_name);
+            let status_bar = self.editor_status_bar();
 
             self.editor_main_content(main_workspace, bottom_panel, status_bar)
         };
@@ -46,7 +44,7 @@ impl Gridvana {
 
         let mut layers = vec![base];
 
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "linux"))]
         if let Some(app_menu) = self.app_menu_overlay() {
             layers.push(app_menu);
         }

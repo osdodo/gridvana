@@ -7,5 +7,5 @@ mod editor_export;
 mod editor_timeline;
 mod settings;
 mod start;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 mod title_bar;

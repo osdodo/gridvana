@@ -775,35 +775,26 @@ impl Gridvana {
         ))
     }
 
-    pub(super) fn editor_status_bar(&self, active_tool_name: &str) -> Element<'_, Message> {
+    pub(super) fn editor_status_bar(&self) -> Element<'_, Message> {
         if !self.has_visible_canvas() {
             let settings_button: Element<'_, Message> = {
-                #[cfg(target_os = "linux")]
+                #[cfg(any(target_os = "linux", windows))]
                 {
-                    widget::button(widget::text(tr("Settings", "设置")).size(10))
-                        .on_press(Message::OpenCliSettings)
+                    widget::button(widget::text("☰").size(14))
+                        .on_press(Message::ToggleAppMenu)
                         .padding(0)
                         .style(widget::button::text)
                         .into()
                 }
-                #[cfg(not(target_os = "linux"))]
+                #[cfg(not(any(target_os = "linux", windows)))]
                 {
                     widget::Space::new().into()
                 }
             };
             return widget::container(
-                widget::row![
-                    settings_button,
-                    widget::text(active_tool_name.to_string())
-                        .size(10)
-                        .color(TEXT_PRIMARY),
-                    widget::text(tr("No canvas created", "尚未创建画布"))
-                        .size(10)
-                        .color(TEXT_SECONDARY),
-                    widget::Space::new().width(Length::Fill),
-                ]
-                .spacing(12)
-                .align_y(iced::Alignment::Center),
+                widget::row![settings_button, widget::Space::new().width(Length::Fill),]
+                    .spacing(12)
+                    .align_y(iced::Alignment::Center),
             )
             .padding([4, 8])
             .height(Length::Fixed(24.0))
@@ -820,33 +811,16 @@ impl Gridvana {
             tr("Unsaved", "未保存")
         };
 
-        let mcp_connected = self.mcp_service.is_some();
-        let status_light = widget::container(widget::Space::new())
-            .width(Length::Fixed(7.0))
-            .height(Length::Fixed(7.0))
-            .style(move |_| {
-                widget::container::Style::default()
-                    .background(if mcp_connected {
-                        iced::Color::from_rgb8(92, 174, 119)
-                    } else {
-                        TEXT_MUTED
-                    })
-                    .border(iced::Border {
-                        color: iced::Color::TRANSPARENT,
-                        width: 0.0,
-                        radius: 4.0.into(),
-                    })
-            });
         let status_settings_button: Element<'_, Message> = {
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", windows))]
             {
-                widget::button(widget::text(tr("Settings", "设置")).size(10))
-                    .on_press(Message::OpenCliSettings)
+                widget::button(widget::text("☰").size(14))
+                    .on_press(Message::ToggleAppMenu)
                     .padding(0)
                     .style(widget::button::text)
                     .into()
             }
-            #[cfg(not(target_os = "linux"))]
+            #[cfg(not(any(target_os = "linux", windows)))]
             {
                 widget::Space::new().into()
             }
@@ -854,7 +828,6 @@ impl Gridvana {
         widget::container(
             widget::row![
                 status_settings_button,
-                status_light,
                 widget::button(
                     widget::text(format!(
                         "{} {} × {} ▾",
@@ -868,9 +841,6 @@ impl Gridvana {
                 .on_press(Message::ToggleCanvasSizePopover)
                 .padding(0)
                 .style(widget::button::text),
-                widget::text(active_tool_name.to_string())
-                    .size(10)
-                    .color(TEXT_MUTED),
                 widget::Space::new().width(Length::Fill),
                 widget::text(format!("RGBA · Schema V6 · {save_status}"))
                     .size(10)

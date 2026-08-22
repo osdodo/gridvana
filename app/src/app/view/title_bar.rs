@@ -1,18 +1,21 @@
 use super::super::Gridvana;
-use super::super::ui::{
-    BORDER_SUBTLE, OVERLAY_BACKGROUND, PANEL_BACKGROUND, SURFACE_BACKGROUND, TEXT_MUTED,
-    TEXT_PRIMARY,
-};
+#[cfg(windows)]
+use super::super::ui::PANEL_BACKGROUND;
+use super::super::ui::{BORDER_SUBTLE, OVERLAY_BACKGROUND, SURFACE_BACKGROUND, TEXT_PRIMARY};
+#[cfg(windows)]
 use crate::branding;
 use crate::i18n::tr;
 use crate::types::Message;
-use iced::{Background, Element, Length, Theme, mouse, widget};
+#[cfg(windows)]
+use iced::mouse;
+use iced::{Background, Element, Length, Theme, widget};
 
+#[cfg(windows)]
 const TITLE_BAR_HEIGHT: f32 = 40.0;
-const MENU_LEFT: f32 = 104.0;
 const MENU_WIDTH: f32 = 210.0;
 
 impl Gridvana {
+    #[cfg(windows)]
     pub(super) fn window_title_bar(&self) -> Element<'_, Message> {
         let brand = widget::mouse_area(
             widget::row![
@@ -28,18 +31,6 @@ impl Gridvana {
         .on_double_click(Message::ToggleWindowMaximized)
         .interaction(mouse::Interaction::Grab);
 
-        let menu_toggle = widget::button(
-            widget::container(widget::text("☰").size(15).color(TEXT_MUTED))
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .center(Length::Fill),
-        )
-        .on_press(Message::ToggleAppMenu)
-        .width(Length::Fixed(30.0))
-        .height(Length::Fill)
-        .padding(0)
-        .style(title_button_style(false, self.app_menu_open));
-
         let drag_region = widget::mouse_area(widget::Space::new().width(Length::Fill))
             .on_press(Message::BeginWindowDrag)
             .on_double_click(Message::ToggleWindowMaximized)
@@ -50,7 +41,7 @@ impl Gridvana {
         let close = window_control("×", Message::ExitApplication, true);
 
         widget::container(
-            widget::row![brand, menu_toggle, drag_region, minimize, maximize, close]
+            widget::row![brand, drag_region, minimize, maximize, close]
                 .height(Length::Fill)
                 .align_y(iced::Alignment::Center),
         )
@@ -106,9 +97,9 @@ impl Gridvana {
         });
 
         let positioned = widget::column![
-            widget::Space::new().height(Length::Fixed(TITLE_BAR_HEIGHT)),
+            widget::Space::new().height(Length::Fill),
             widget::row![
-                widget::Space::new().width(Length::Fixed(MENU_LEFT)),
+                widget::Space::new().width(Length::Fixed(8.0)),
                 menu,
                 widget::Space::new().width(Length::Fill),
             ],
@@ -128,6 +119,7 @@ impl Gridvana {
     }
 }
 
+#[cfg(windows)]
 fn window_control(
     label: &'static str,
     message: Message,
@@ -147,6 +139,7 @@ fn window_control(
     .into()
 }
 
+#[cfg(windows)]
 fn title_button_style(
     destructive: bool,
     selected: bool,
