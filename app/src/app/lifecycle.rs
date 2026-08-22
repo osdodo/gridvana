@@ -121,7 +121,6 @@ impl Gridvana {
                 cel_context_menu: None,
                 selection_context_menu: None,
                 canvas_context_menu: None,
-                canvas_size_popover_open: false,
                 app_menu_open: false,
                 current_stroke: None,
                 current_shape: None,

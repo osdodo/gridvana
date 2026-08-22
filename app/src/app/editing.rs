@@ -985,12 +985,12 @@ impl Gridvana {
 
     pub(super) fn resize_current_canvas(&mut self) {
         let (Ok(canvas_width), Ok(canvas_height)) = (
-            self.resize_canvas_width.parse::<u32>(),
-            self.resize_canvas_height.parse::<u32>(),
+            self.resize_canvas_width.trim().parse::<u32>(),
+            self.resize_canvas_height.trim().parse::<u32>(),
         ) else {
             return;
         };
-        if self.apply_document_transaction(vec![DocumentOp::ResizeCanvas {
+        if self.apply_document_transaction(vec![DocumentOp::ResizeCanvasClipped {
             canvas_width,
             canvas_height,
         }]) {
@@ -1127,6 +1127,8 @@ impl Gridvana {
         self.current_stroke = None;
         self.current_shape = None;
         self.shape_preview_indices.clear();
+        // A native file picker may swallow the matching mouse-up event.
+        self.global_left_button_down = false;
         self.clear_selection_state();
         self.is_playing = false;
         self.playback_last_tick = None;

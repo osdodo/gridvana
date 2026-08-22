@@ -57,7 +57,6 @@ impl Gridvana {
                 input_enabled: !self.cli_settings_open
                     && self.selection_context_menu.is_none()
                     && self.canvas_context_menu.is_none()
-                    && !self.canvas_size_popover_open
                     && self.cel_context_menu.is_none()
                     && self.preview_drag.is_none(),
                 preview_indices,

@@ -689,11 +689,6 @@ impl Gridvana {
                 "",
                 square_grid.then_some(Message::TrimCanvas),
             ),
-            (
-                tr("Canvas size…", "画布尺寸…"),
-                "",
-                Some(Message::ToggleCanvasSizePopover),
-            ),
         ];
 
         Some(context_menu_overlay(
@@ -701,77 +696,6 @@ impl Gridvana {
             196.0,
             entries,
             Message::CloseCanvasContextMenu,
-        ))
-    }
-
-    pub(super) fn canvas_size_popover_overlay(&self) -> Option<Element<'_, Message>> {
-        if !self.canvas_size_popover_open {
-            return None;
-        }
-
-        let card = widget::container(
-            widget::column![
-                widget::text(tr("Canvas size", "画布尺寸"))
-                    .size(12)
-                    .color(TEXT_PRIMARY),
-                widget::row![
-                    widget::text_input(tr("Width", "宽"), &self.resize_canvas_width)
-                        .on_input(Message::UpdateResizeCanvasWidth)
-                        .on_submit(Message::ResizeCurrentCanvas)
-                        .padding([6, 7])
-                        .size(10)
-                        .style(text_input_style)
-                        .width(Length::FillPortion(1)),
-                    widget::text_input(tr("Height", "高"), &self.resize_canvas_height)
-                        .on_input(Message::UpdateResizeCanvasHeight)
-                        .on_submit(Message::ResizeCurrentCanvas)
-                        .padding([6, 7])
-                        .size(10)
-                        .style(text_input_style)
-                        .width(Length::FillPortion(1)),
-                ]
-                .spacing(6),
-                widget::row![
-                    widget::button(widget::text(tr("Cancel", "取消")).size(10))
-                        .on_press(Message::CloseCanvasSizePopover)
-                        .padding([6, 7])
-                        .width(Length::FillPortion(1))
-                        .style(|theme: &Theme, status| {
-                            compact_action_button_style(theme, status, false)
-                        }),
-                    widget::button(widget::text(tr("Apply", "应用")).size(10))
-                        .on_press(Message::ResizeCurrentCanvas)
-                        .padding([6, 7])
-                        .width(Length::FillPortion(1))
-                        .style(|theme: &Theme, status| {
-                            compact_action_button_style(theme, status, true)
-                        }),
-                ]
-                .spacing(6),
-            ]
-            .spacing(8),
-        )
-        .width(Length::Fixed(220.0))
-        .padding(12)
-        .style(|_theme: &Theme| {
-            widget::container::Style::default()
-                .background(OVERLAY_BACKGROUND)
-                .border(iced::Border {
-                    color: BORDER_SUBTLE,
-                    width: 1.0,
-                    radius: 3.0.into(),
-                })
-        });
-
-        Some(widget::opaque(
-            widget::mouse_area(
-                widget::container(card)
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .center(Length::Fill),
-            )
-            .on_press(Message::CloseCanvasSizePopover)
-            .on_right_press(Message::CloseCanvasSizePopover),
         ))
     }
 
@@ -828,23 +752,15 @@ impl Gridvana {
         widget::container(
             widget::row![
                 status_settings_button,
-                widget::button(
-                    widget::text(format!(
-                        "{} {} × {} ▾",
-                        tr("Grid", "网格"),
-                        displayed_project.canvas_width,
-                        displayed_project.canvas_height,
-                    ))
-                    .size(10)
-                    .color(TEXT_MUTED)
-                )
-                .on_press(Message::ToggleCanvasSizePopover)
-                .padding(0)
-                .style(widget::button::text),
                 widget::Space::new().width(Length::Fill),
-                widget::text(format!("RGBA · Schema V6 · {save_status}"))
-                    .size(10)
-                    .color(TEXT_MUTED),
+                widget::text(format!(
+                    "{} {} × {} · {save_status}",
+                    tr("Grid", "网格"),
+                    displayed_project.canvas_width,
+                    displayed_project.canvas_height,
+                ))
+                .size(10)
+                .color(TEXT_MUTED),
             ]
             .spacing(12)
             .align_y(iced::Alignment::Center),

@@ -134,6 +134,9 @@ impl Gridvana {
                 self.app_menu_open = false;
                 self.new_project_dialog_open = false;
                 self.pending_sprite_sheet_export_path = None;
+                // The native file picker can swallow the matching mouse-up
+                // event. Do not carry the menu click into the canvas.
+                self.global_left_button_down = false;
                 if let Some(path) = FileDialog::new()
                     .add_filter("Gridvana Project", &["gvn"])
                     .pick_file()

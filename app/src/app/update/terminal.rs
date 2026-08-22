@@ -27,6 +27,8 @@ impl Gridvana {
                 self.about_dialog_open = false;
                 self.global_left_button_down = false;
                 self.cli_config_draft = self.cli_config.clone();
+                self.resize_canvas_width = self.project.canvas_width.to_string();
+                self.resize_canvas_height = self.project.canvas_height.to_string();
                 self.mcp_copy_feedback = None;
                 self.cli_save_error = None;
                 self.cli_settings_open = true;

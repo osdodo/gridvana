@@ -33,6 +33,10 @@ pub enum DocumentOp {
         canvas_width: u32,
         canvas_height: u32,
     },
+    ResizeCanvasClipped {
+        canvas_width: u32,
+        canvas_height: u32,
+    },
     SetForegroundColor {
         color: Rgba,
     },
@@ -235,27 +239,13 @@ pub fn apply_document_op(project: &mut Project, op: &DocumentOp) -> Result<(), S
             canvas_width,
             canvas_height,
         } => {
-            if !(1..=MAX_CANVAS_SIZE).contains(canvas_width)
-                || !(1..=MAX_CANVAS_SIZE).contains(canvas_height)
-            {
-                return Err(format!(
-                    "canvas dimensions must be between 1 and {MAX_CANVAS_SIZE}"
-                ));
-            }
-            let was_empty = project.canvas_width == 0 || project.canvas_height == 0;
-            project.canvas_width = *canvas_width;
-            project.canvas_height = *canvas_height;
-            if was_empty {
-                project.symmetry_x.position = *canvas_width as f32 / 2.0;
-                project.symmetry_y.position = *canvas_height as f32 / 2.0;
-            } else {
-                project.symmetry_x.position =
-                    project.symmetry_x.position.clamp(0.0, *canvas_width as f32);
-                project.symmetry_y.position = project
-                    .symmetry_y
-                    .position
-                    .clamp(0.0, *canvas_height as f32);
-            }
+            resize_canvas(project, *canvas_width, *canvas_height, false)?;
+        }
+        DocumentOp::ResizeCanvasClipped {
+            canvas_width,
+            canvas_height,
+        } => {
+            resize_canvas(project, *canvas_width, *canvas_height, true)?;
         }
         DocumentOp::SetForegroundColor { color } => {
             project.foreground_color = clamped_color(*color);
@@ -844,6 +834,81 @@ fn normalized_layer_name(name: Option<&str>, existing_layers: usize) -> String {
     }
 }
 
+fn resize_canvas(
+    project: &mut Project,
+    canvas_width: u32,
+    canvas_height: u32,
+    clip_pixels: bool,
+) -> Result<(), String> {
+    if !(1..=MAX_CANVAS_SIZE).contains(&canvas_width)
+        || !(1..=MAX_CANVAS_SIZE).contains(&canvas_height)
+    {
+        return Err(format!(
+            "canvas dimensions must be between 1 and {MAX_CANVAS_SIZE}"
+        ));
+    }
+
+    let is_shrinking = canvas_width < project.canvas_width || canvas_height < project.canvas_height;
+    if clip_pixels && is_shrinking {
+        let linked_pixels = project
+            .cels
+            .iter()
+            .filter(|cel| cel.linked_cel_id.is_some())
+            .map(|cel| Ok((cel.id, project.resolved_cel(cel)?.pixels.clone())))
+            .collect::<Result<Vec<_>, String>>()?;
+        for (cel_id, pixels) in linked_pixels {
+            let cel = project
+                .cel_by_id_mut(cel_id)
+                .expect("linked cel was collected from the project");
+            cel.pixels = pixels;
+            cel.linked_cel_id = None;
+        }
+    }
+
+    let was_empty = project.canvas_width == 0 || project.canvas_height == 0;
+    project.canvas_width = canvas_width;
+    project.canvas_height = canvas_height;
+
+    if clip_pixels && is_shrinking {
+        let clipped_pixels = project
+            .cels
+            .iter()
+            .map(|cel| {
+                let indices = cel
+                    .pixels
+                    .keys()
+                    .copied()
+                    .filter(|index| {
+                        !index
+                            .x
+                            .checked_add(cel.offset.x)
+                            .zip(index.y.checked_add(cel.offset.y))
+                            .is_some_and(|(x, y)| project.is_index_in_bounds(GridIndex { x, y }))
+                    })
+                    .collect::<Vec<_>>();
+                (cel.id, indices)
+            })
+            .collect::<Vec<_>>();
+        for (cel_id, indices) in clipped_pixels {
+            let cel = project
+                .cel_by_id_mut(cel_id)
+                .expect("clipped cel was collected from the project");
+            for index in indices {
+                cel.pixels.remove(&index);
+            }
+        }
+    }
+
+    if was_empty {
+        project.symmetry_x.position = canvas_width as f32 / 2.0;
+        project.symmetry_y.position = canvas_height as f32 / 2.0;
+    } else {
+        project.symmetry_x.position = project.symmetry_x.position.clamp(0.0, canvas_width as f32);
+        project.symmetry_y.position = project.symmetry_y.position.clamp(0.0, canvas_height as f32);
+    }
+    Ok(())
+}
+
 fn clamped_color(mut color: Rgba) -> Rgba {
     color.r = color.r.clamp(0.0, 1.0);
     color.g = color.g.clamp(0.0, 1.0);
@@ -872,6 +937,28 @@ mod tests {
 
         assert_eq!(resized.symmetry_x.position, 5.0);
         assert_eq!(resized.symmetry_y.position, 3.0);
+    }
+
+    #[test]
+    fn clipped_resize_removes_pixels_outside_the_new_canvas() {
+        let mut project = Project::new_square(8.0, 16, 16);
+        let cel = project.ensure_current_cel().unwrap();
+        cel.pixels.insert(GridIndex { x: 2, y: 3 }, Rgba::WHITE);
+        cel.pixels.insert(GridIndex { x: 15, y: 15 }, Rgba::WHITE);
+
+        let resized = apply_document_ops(
+            &project,
+            &[DocumentOp::ResizeCanvasClipped {
+                canvas_width: 8,
+                canvas_height: 8,
+            }],
+        )
+        .unwrap();
+
+        assert_eq!((resized.canvas_width, resized.canvas_height), (8, 8));
+        let pixels = &resized.current_cel().unwrap().pixels;
+        assert!(pixels.contains_key(&GridIndex { x: 2, y: 3 }));
+        assert!(!pixels.contains_key(&GridIndex { x: 15, y: 15 }));
     }
 
     #[test]

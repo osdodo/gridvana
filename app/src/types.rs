@@ -60,6 +60,7 @@ pub enum InspectorPanel {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SettingsSection {
     General,
+    Canvas,
     Agent,
     Mcp,
 }
@@ -125,8 +126,6 @@ pub enum Message {
     CloseSelectionContextMenu,
     OpenCanvasContextMenu,
     CloseCanvasContextMenu,
-    ToggleCanvasSizePopover,
-    CloseCanvasSizePopover,
     TransformPixelSelectionSequence(Vec<PixelTransform>),
     CropCanvasToSelection,
     TrimCanvas,

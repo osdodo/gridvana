@@ -15,8 +15,9 @@ const CARD_HEIGHT: f32 = 620.0;
 const NAV_WIDTH: f32 = 172.0;
 const LABEL_WIDTH: f32 = 186.0;
 
-const SECTIONS: [SettingsSection; 3] = [
+const SECTIONS: [SettingsSection; 4] = [
     SettingsSection::General,
+    SettingsSection::Canvas,
     SettingsSection::Agent,
     SettingsSection::Mcp,
 ];
@@ -24,6 +25,7 @@ const SECTIONS: [SettingsSection; 3] = [
 fn section_label(section: SettingsSection) -> &'static str {
     match section {
         SettingsSection::General => tr("General", "通用"),
+        SettingsSection::Canvas => tr("Canvas", "画布"),
         SettingsSection::Agent => tr("AI Agent", "AI 代理"),
         SettingsSection::Mcp => tr("MCP Service", "MCP 服务"),
     }
@@ -170,6 +172,7 @@ impl Gridvana {
     fn settings_section_body(&self) -> Element<'_, Message> {
         match self.settings_section {
             SettingsSection::General => self.settings_general_section(),
+            SettingsSection::Canvas => self.settings_canvas_section(),
             SettingsSection::Agent => self.settings_agent_section(),
             SettingsSection::Mcp => self.settings_mcp_section(),
         }
@@ -206,6 +209,73 @@ impl Gridvana {
             .wrapping(iced::widget::text::Wrapping::WordOrGlyph),
         ]
         .spacing(16)
+        .into()
+    }
+
+    fn settings_canvas_section(&self) -> Element<'_, Message> {
+        let width = self.resize_canvas_width.trim().parse::<u32>().ok();
+        let height = self.resize_canvas_height.trim().parse::<u32>().ok();
+        let can_apply = self.has_canvas
+            && width.is_some_and(|value| (1..=4096).contains(&value))
+            && height.is_some_and(|value| (1..=4096).contains(&value));
+        let will_shrink = self.has_canvas
+            && (width.is_some_and(|value| value < self.project.canvas_width)
+                || height.is_some_and(|value| value < self.project.canvas_height));
+        let size_inputs = widget::row![
+            widget::text_input(tr("Width", "宽"), &self.resize_canvas_width)
+                .on_input(Message::UpdateResizeCanvasWidth)
+                .on_submit_maybe(can_apply.then_some(Message::ResizeCurrentCanvas))
+                .padding([6, 8])
+                .size(11)
+                .style(text_input_style)
+                .width(Length::FillPortion(1)),
+            widget::text_input(tr("Height", "高"), &self.resize_canvas_height)
+                .on_input(Message::UpdateResizeCanvasHeight)
+                .on_submit_maybe(can_apply.then_some(Message::ResizeCurrentCanvas))
+                .padding([6, 8])
+                .size(11)
+                .style(text_input_style)
+                .width(Length::FillPortion(1)),
+            widget::button(widget::text(tr("Apply", "应用")).size(10).line_height(1.0))
+                .on_press_maybe(can_apply.then_some(Message::ResizeCurrentCanvas))
+                .padding([7, 12])
+                .style(|theme: &Theme, status| {
+                    compact_action_button_style(theme, status, true)
+                }),
+        ]
+        .spacing(6)
+        .align_y(iced::Alignment::Center);
+        let mut dimension_control = widget::column![size_inputs].spacing(7);
+        if will_shrink {
+            dimension_control = dimension_control.push(
+                widget::text(tr(
+                    "Warning: shrinking the canvas may discard artwork outside the new bounds.",
+                    "注意：缩小画布可能会丢失新边界以外的绘制内容。",
+                ))
+                .size(10)
+                .color(ACCENT)
+                .wrapping(iced::widget::text::Wrapping::WordOrGlyph),
+            );
+        }
+
+        widget::column![group(
+            tr("Canvas size", "画布尺寸"),
+            vec![
+                setting_row(
+                    tr("Current size", "当前尺寸"),
+                    None,
+                    value_text(if self.has_canvas {
+                        format!(
+                            "{} × {} px",
+                            self.project.canvas_width, self.project.canvas_height
+                        )
+                    } else {
+                        tr("No canvas", "尚未创建画布").to_string()
+                    }),
+                ),
+                setting_row(tr("Dimensions", "尺寸"), None, dimension_control.into(),),
+            ],
+        )]
         .into()
     }
 
@@ -539,6 +609,8 @@ impl Gridvana {
             .size(10)
             .color(TEXT_MUTED)
             .into()
+        } else if self.settings_section == SettingsSection::Canvas {
+            widget::Space::new().into()
         } else {
             widget::text(self.cli_status.clone())
                 .size(10)

@@ -61,10 +61,6 @@ impl Gridvana {
             layers.push(canvas_context_menu);
         }
 
-        if let Some(canvas_size_popover) = self.canvas_size_popover_overlay() {
-            layers.push(canvas_size_popover);
-        }
-
         if let Some(settings) = self.settings_overlay() {
             layers.push(settings);
         }

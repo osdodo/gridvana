@@ -13,6 +13,7 @@ use iced::{Background, Element, Length, Theme, widget};
 #[cfg(windows)]
 const TITLE_BAR_HEIGHT: f32 = 40.0;
 const MENU_WIDTH: f32 = 210.0;
+const MENU_BOTTOM_OFFSET: f32 = 28.0;
 
 impl Gridvana {
     #[cfg(windows)]
@@ -103,7 +104,8 @@ impl Gridvana {
                 menu,
                 widget::Space::new().width(Length::Fill),
             ],
-            widget::Space::new().height(Length::Fill),
+            // Keep the menu directly above the status-bar menu button.
+            widget::Space::new().height(Length::Fixed(MENU_BOTTOM_OFFSET)),
         ]
         .width(Length::Fill)
         .height(Length::Fill);
