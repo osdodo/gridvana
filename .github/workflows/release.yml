@@ -85,8 +85,41 @@ jobs:
           name: Gridvana-windows-${{ matrix.arch }}
           path: Gridvana-${{ github.ref_name }}-windows-${{ matrix.arch }}.zip
 
+  build-linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: linux-${{ matrix.runner }}-${{ matrix.arch }}
+
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Build app
+        run: cargo build --release --package app
+
+      - name: Create archive
+        run: |
+          tar -czf "Gridvana-${{ github.ref_name }}-linux-${{ matrix.arch }}.tar.gz" \
+            -C target/release Gridvana
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Gridvana-linux-${{ matrix.arch }}
+          path: Gridvana-${{ github.ref_name }}-linux-${{ matrix.arch }}.tar.gz
+
   release:
-    needs: [build-macos, build-windows]
+    needs: [build-macos, build-windows, build-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -96,5 +129,5 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*.zip
+          files: artifacts/*
           generate_release_notes: true
