@@ -1,10 +1,13 @@
 pub const LOGO_PNG: &[u8] = include_bytes!("../assets/logo.png");
 
+#[cfg(windows)]
 use std::sync::LazyLock;
 
+#[cfg(windows)]
 static LOGO_HANDLE: LazyLock<iced::widget::image::Handle> =
     LazyLock::new(|| iced::widget::image::Handle::from_bytes(LOGO_PNG));
 
+#[cfg(windows)]
 pub fn logo_handle() -> iced::widget::image::Handle {
     LOGO_HANDLE.clone()
 }
