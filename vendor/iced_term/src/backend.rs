@@ -151,6 +151,11 @@ impl Backend {
             env: settings.env,
             ..tty::Options::default()
         };
+        #[cfg(target_os = "windows")]
+        let pty_config = tty::Options {
+            escape_args: settings.escape_args,
+            ..pty_config
+        };
 
         let config = term::Config::default();
         let terminal_size = TerminalSize::default();

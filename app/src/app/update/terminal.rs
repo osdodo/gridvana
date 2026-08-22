@@ -255,6 +255,8 @@ impl Gridvana {
                     font: iced_term::settings::FontSettings {
                         size: 12.0,
                         scale_factor: 1.25,
+                        #[cfg(target_os = "windows")]
+                        font_type: iced::Font::with_name("NSimSun"),
                         ..Default::default()
                     },
                     theme: iced_term::settings::ThemeSettings::new(Box::new(palette)),

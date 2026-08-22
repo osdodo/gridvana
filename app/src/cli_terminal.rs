@@ -619,6 +619,8 @@ pub(crate) fn iced_terminal_settings(
             args,
             env: spec.env,
             working_directory: Some(spec.working_directory),
+            #[cfg(target_os = "windows")]
+            escape_args: true,
         },
         temporary_files: spec.temporary_files,
     })

@@ -22,6 +22,8 @@ pub struct BackendSettings {
     pub args: Vec<String>,
     pub env: HashMap<String, String>,
     pub working_directory: Option<PathBuf>,
+    #[cfg(target_os = "windows")]
+    pub escape_args: bool,
 }
 
 impl Default for BackendSettings {
@@ -31,6 +33,8 @@ impl Default for BackendSettings {
             args: vec![],
             env: HashMap::new(),
             working_directory: None,
+            #[cfg(target_os = "windows")]
+            escape_args: true,
         }
     }
 }

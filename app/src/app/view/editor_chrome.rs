@@ -777,13 +777,23 @@ impl Gridvana {
 
     pub(super) fn editor_status_bar(&self, active_tool_name: &str) -> Element<'_, Message> {
         if !self.has_visible_canvas() {
-            return widget::container(
-                widget::row![
-                    #[cfg(target_os = "linux")]
+            let settings_button: Element<'_, Message> = {
+                #[cfg(target_os = "linux")]
+                {
                     widget::button(widget::text(tr("Settings", "设置")).size(10))
                         .on_press(Message::OpenCliSettings)
                         .padding(0)
-                        .style(widget::button::text),
+                        .style(widget::button::text)
+                        .into()
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    widget::Space::new().into()
+                }
+            };
+            return widget::container(
+                widget::row![
+                    settings_button,
                     widget::text(active_tool_name.to_string())
                         .size(10)
                         .color(TEXT_PRIMARY),
@@ -827,21 +837,24 @@ impl Gridvana {
                         radius: 4.0.into(),
                     })
             });
-        widget::container(
-            widget::row![
-                #[cfg(target_os = "linux")]
+        let status_settings_button: Element<'_, Message> = {
+            #[cfg(target_os = "linux")]
+            {
                 widget::button(widget::text(tr("Settings", "设置")).size(10))
                     .on_press(Message::OpenCliSettings)
                     .padding(0)
-                    .style(widget::button::text),
+                    .style(widget::button::text)
+                    .into()
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                widget::Space::new().into()
+            }
+        };
+        widget::container(
+            widget::row![
+                status_settings_button,
                 status_light,
-                widget::text(if mcp_connected {
-                    tr("MCP available", "MCP 会话可用")
-                } else {
-                    tr("MCP unavailable", "MCP 不可用")
-                })
-                .size(10)
-                .color(TEXT_MUTED),
                 widget::button(
                     widget::text(format!(
                         "{} {} × {} ▾",

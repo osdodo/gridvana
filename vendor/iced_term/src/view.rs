@@ -522,7 +522,6 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
             // Precompute constants used in the inner loop
             let display_offset = content.grid.display_offset() as f32;
             let cell_size = Size::new(cell_width, cell_height);
-            let half_w = cell_width * 0.5;
             let half_h = cell_height * 0.5;
             // We use the background pallete color as a default
             // because the widget global background color must be the same
@@ -541,10 +540,13 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
 
                 // Resolve position point for this cell
                 let x = layout_offset_x + (col * cell_width);
-                let y = layout_offset_y
-                    + (((line as f32) + display_offset) * cell_height);
+                let y = layout_offset_y + (((line as f32) + display_offset) * cell_height);
                 let cell_center_y = y + half_h;
-                let cell_center_x = x + half_w;
+                let cell_center_x = glyph_center_x(
+                    x,
+                    cell_width,
+                    indexed.cell.flags.contains(cell::Flags::WIDE_CHAR),
+                );
 
                 // Resolve colors for this cell
                 let mut fg = self.term.theme.get_color(indexed.fg);
@@ -649,7 +651,10 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                 }
 
                 // Draw text
-                if indexed.c != ' ' && indexed.c != '\t' {
+                let is_wide_spacer = indexed.cell.flags.intersects(
+                    cell::Flags::WIDE_CHAR_SPACER | cell::Flags::LEADING_WIDE_CHAR_SPACER,
+                );
+                if indexed.c != ' ' && indexed.c != '\t' && !is_wide_spacer {
                     if content.grid.cursor.point == indexed.point
                         && content.terminal_mode.contains(TermMode::APP_CURSOR)
                     {
@@ -933,9 +938,19 @@ impl BackgroundRect {
     }
 }
 
+fn glyph_center_x(cell_x: f32, cell_width: f32, is_wide: bool) -> f32 {
+    cell_x + if is_wide { cell_width } else { cell_width * 0.5 }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wide_glyph_is_centered_across_both_terminal_cells() {
+        assert_eq!(glyph_center_x(10.0, 8.0, false), 14.0);
+        assert_eq!(glyph_center_x(10.0, 8.0, true), 18.0);
+    }
 
     mod input_method_tests {
         use super::*;
