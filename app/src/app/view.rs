@@ -1,4 +1,3 @@
-mod about;
 mod ai_panel;
 mod editor;
 mod editor_canvas;

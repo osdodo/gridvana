@@ -89,7 +89,7 @@ impl Gridvana {
                 preferences,
                 language,
                 language_save_error,
-                about_dialog_open: false,
+                download_open_error: None,
                 cli_config,
                 cli_config_draft,
                 cli_status,

@@ -77,10 +77,6 @@ impl Gridvana {
             layers.push(recovery_overlay);
         }
 
-        if let Some(about_overlay) = self.about_overlay() {
-            layers.push(about_overlay);
-        }
-
         if layers.len() == 1 {
             layers.pop().unwrap()
         } else {

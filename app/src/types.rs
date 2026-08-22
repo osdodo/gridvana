@@ -63,6 +63,7 @@ pub enum SettingsSection {
     Canvas,
     Agent,
     Mcp,
+    About,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,7 +91,7 @@ pub enum Message {
     SelectSettingsSection(SettingsSection),
     SetLanguage(Language),
     OpenAbout,
-    CloseAbout,
+    OpenDownloadUrl,
     SelectCliAgent(CliAgent),
     SetAiPanelEnabled(bool),
     SetCliDefaultAllow(bool),

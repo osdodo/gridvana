@@ -1,9 +1,46 @@
 use super::super::Gridvana;
 use super::super::McpCopyFeedback;
-use crate::cli_terminal::{cli_environment, iced_terminal_settings, mcp_agent_prompt};
+use crate::cli_terminal::{iced_terminal_settings, mcp_agent_prompt, run_cli_version};
 use crate::i18n::{set_current_language, tr};
-use crate::types::{InspectorPanel, Message};
+use crate::types::{InspectorPanel, Message, SettingsSection};
 use iced::Task;
+use std::process::Command as ProcessCommand;
+
+const DOWNLOAD_URL: &str = "https://github.com/osdodo/gridvana/releases";
+
+fn open_download_url() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        ProcessCommand::new("cmd")
+            .args(["/C", "start", "", DOWNLOAD_URL])
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        ProcessCommand::new("open")
+            .arg(DOWNLOAD_URL)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        ProcessCommand::new("xdg-open")
+            .arg(DOWNLOAD_URL)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos", unix)))]
+    {
+        Err("unsupported platform".to_string())
+    }
+}
 
 impl Gridvana {
     pub(super) fn handle_terminal_message(
@@ -24,7 +61,6 @@ impl Gridvana {
             }
             Message::OpenCliSettings => {
                 self.app_menu_open = false;
-                self.about_dialog_open = false;
                 self.global_left_button_down = false;
                 self.cli_config_draft = self.cli_config.clone();
                 self.resize_canvas_width = self.project.canvas_width.to_string();
@@ -32,6 +68,30 @@ impl Gridvana {
                 self.mcp_copy_feedback = None;
                 self.cli_save_error = None;
                 self.cli_settings_open = true;
+                Ok(Task::none())
+            }
+            Message::OpenAbout => {
+                self.app_menu_open = false;
+                self.new_project_dialog_open = false;
+                self.pending_sprite_sheet_export_path = None;
+                self.global_left_button_down = false;
+                self.cli_config_draft = self.cli_config.clone();
+                self.resize_canvas_width = self.project.canvas_width.to_string();
+                self.resize_canvas_height = self.project.canvas_height.to_string();
+                self.mcp_copy_feedback = None;
+                self.cli_save_error = None;
+                self.download_open_error = None;
+                self.settings_section = SettingsSection::About;
+                self.cli_settings_open = true;
+                Ok(Task::none())
+            }
+            Message::OpenDownloadUrl => {
+                self.download_open_error = open_download_url().err().map(|error| {
+                    format!(
+                        "{}: {error}",
+                        tr("Could not open download page", "无法打开下载页面")
+                    )
+                });
                 Ok(Task::none())
             }
             Message::CloseCliSettings => {
@@ -193,10 +253,7 @@ impl Gridvana {
         );
         Ok(Task::perform(
             async move {
-                std::process::Command::new(&command)
-                    .arg("--version")
-                    .envs(cli_environment())
-                    .output()
+                run_cli_version(&command)
                     .map_err(|error| {
                         format!("{} {command}: {error}", tr("Could not run", "无法运行"))
                     })

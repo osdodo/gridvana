@@ -203,7 +203,7 @@ pub struct Gridvana {
     pub(super) preferences: AppPreferences,
     pub(super) language: Language,
     pub(super) language_save_error: Option<String>,
-    pub(super) about_dialog_open: bool,
+    pub(super) download_open_error: Option<String>,
     pub(super) cli_config: CliConfig,
     pub(super) cli_config_draft: CliConfig,
     pub(super) cli_status: String,

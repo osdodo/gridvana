@@ -47,9 +47,7 @@ impl Gridvana {
             Message::GlobalLeftPressed
             | Message::GlobalLeftReleased
             | Message::UpdateCursorPosition(_)
-                if self.cli_settings_open
-                    || self.new_project_dialog_open
-                    || self.about_dialog_open =>
+                if self.cli_settings_open || self.new_project_dialog_open =>
             {
                 Ok(Task::none())
             }
@@ -172,10 +170,6 @@ impl Gridvana {
             Message::DeactivateMoveSelection => {
                 if self.canvas_context_menu.is_some() {
                     self.canvas_context_menu = None;
-                    return Ok(Task::none());
-                }
-                if self.about_dialog_open {
-                    self.about_dialog_open = false;
                     return Ok(Task::none());
                 }
                 if self.timeline_selection.is_empty() {

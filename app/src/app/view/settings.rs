@@ -15,11 +15,14 @@ const CARD_HEIGHT: f32 = 620.0;
 const NAV_WIDTH: f32 = 172.0;
 const LABEL_WIDTH: f32 = 186.0;
 
-const SECTIONS: [SettingsSection; 4] = [
+const DOWNLOAD_URL: &str = "https://github.com/osdodo/gridvana/releases";
+
+const SECTIONS: [SettingsSection; 5] = [
     SettingsSection::General,
     SettingsSection::Canvas,
     SettingsSection::Agent,
     SettingsSection::Mcp,
+    SettingsSection::About,
 ];
 
 fn section_label(section: SettingsSection) -> &'static str {
@@ -28,6 +31,7 @@ fn section_label(section: SettingsSection) -> &'static str {
         SettingsSection::Canvas => tr("Canvas", "画布"),
         SettingsSection::Agent => tr("AI Agent", "AI 代理"),
         SettingsSection::Mcp => tr("MCP Service", "MCP 服务"),
+        SettingsSection::About => tr("About", "关于"),
     }
 }
 
@@ -175,7 +179,40 @@ impl Gridvana {
             SettingsSection::Canvas => self.settings_canvas_section(),
             SettingsSection::Agent => self.settings_agent_section(),
             SettingsSection::Mcp => self.settings_mcp_section(),
+            SettingsSection::About => self.settings_about_section(),
         }
+    }
+
+    fn settings_about_section(&self) -> Element<'_, Message> {
+        widget::column![group(
+            tr("About", "关于"),
+            vec![
+                setting_row(
+                    tr("Version", "版本"),
+                    None,
+                    value_text(env!("CARGO_PKG_VERSION").to_string()),
+                ),
+                setting_row(
+                    tr("Download", "下载地址"),
+                    None,
+                    widget::button(
+                        widget::text(DOWNLOAD_URL)
+                            .size(10)
+                            .font(iced::Font::MONOSPACE)
+                            .color(ACCENT)
+                            .wrapping(iced::widget::text::Wrapping::WordOrGlyph),
+                    )
+                    .on_press(Message::OpenDownloadUrl)
+                    .padding([6, 8])
+                    .width(Length::Fill)
+                    .style(|theme: &Theme, status| {
+                        compact_action_button_style(theme, status, false)
+                    })
+                    .into(),
+                ),
+            ],
+        )]
+        .into()
     }
 
     fn settings_general_section(&self) -> Element<'_, Message> {
@@ -609,7 +646,18 @@ impl Gridvana {
             .size(10)
             .color(TEXT_MUTED)
             .into()
-        } else if self.settings_section == SettingsSection::Canvas {
+        } else if self.settings_section == SettingsSection::About
+            && let Some(error) = self.download_open_error.as_ref()
+        {
+            widget::text(error)
+                .size(10)
+                .color(ACCENT)
+                .wrapping(iced::widget::text::Wrapping::WordOrGlyph)
+                .into()
+        } else if matches!(
+            self.settings_section,
+            SettingsSection::Canvas | SettingsSection::About
+        ) {
             widget::Space::new().into()
         } else {
             widget::text(self.cli_status.clone())

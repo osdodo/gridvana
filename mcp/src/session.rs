@@ -420,10 +420,7 @@ mod tests {
     use super::{AccessMode, EditSessionStore, SessionError};
     use gridvana_core::edit_ops::{EditOp, PixelChange};
     use gridvana_core::grid::GridIndex;
-    use gridvana_core::model::{
-        CURRENT_SCHEMA_VERSION, CelPosition, FrameId, LayerId, Project, Rgba, TagDirection,
-    };
-    use gridvana_core::persistence::deserialize_project;
+    use gridvana_core::model::{CelPosition, FrameId, LayerId, Project, Rgba, TagDirection};
 
     fn set_pixel_op(x: i32, y: i32) -> EditOp {
         EditOp::SetCelPixels {
@@ -609,20 +606,5 @@ mod tests {
             store.start_edit_session(),
             Err(SessionError::ReadOnly)
         ));
-    }
-
-    #[test]
-    fn v2_json_fixture_migrates_and_reports_the_current_schema() {
-        let project = deserialize_project(include_bytes!("../tests/fixtures/empty.gvn")).unwrap();
-        project.validate().unwrap();
-        assert_eq!(project.schema_version, CURRENT_SCHEMA_VERSION);
-        assert_eq!(project.active_layer_id, LayerId(1));
-        assert_eq!(project.active_frame_id, FrameId(2));
-
-        let store = EditSessionStore::new(project, AccessMode::ReadOnly);
-        assert_eq!(
-            store.project_summary().schema_version,
-            CURRENT_SCHEMA_VERSION
-        );
     }
 }

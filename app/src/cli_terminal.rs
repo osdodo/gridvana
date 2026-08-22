@@ -5,6 +5,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Output;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_TERMINAL_ID: AtomicU64 = AtomicU64::new(1);
@@ -273,6 +274,28 @@ pub(crate) fn cli_environment() -> HashMap<String, String> {
     environment
 }
 
+pub(crate) fn run_cli_version(command: &str) -> std::io::Result<Output> {
+    run_cli_version_with_environment(command, cli_environment())
+}
+
+fn run_cli_version_with_environment(
+    command: &str,
+    environment: HashMap<String, String>,
+) -> std::io::Result<Output> {
+    let spec = LaunchSpec {
+        program: command.trim().to_string(),
+        args: vec!["--version".to_string()],
+        env: environment,
+        working_directory: std::env::current_dir().unwrap_or_else(|_| ".".into()),
+        temporary_files: Vec::new(),
+    };
+    let (program, args) = windows_launch_command(&spec);
+    std::process::Command::new(program)
+        .args(args)
+        .envs(spec.env)
+        .output()
+}
+
 fn cli_search_paths(inherited_path: Option<&OsStr>, home: Option<&Path>) -> Vec<PathBuf> {
     let mut paths = inherited_path
         .map(std::env::split_paths)
@@ -293,6 +316,8 @@ fn cli_search_paths(inherited_path: Option<&OsStr>, home: Option<&Path>) -> Vec<
         ] {
             push_unique_path(&mut paths, home.join(relative));
         }
+        #[cfg(windows)]
+        push_unique_path(&mut paths, home.join("AppData/Roaming/npm"));
         extend_versioned_bins(&mut paths, &home.join(".nvm/versions/node"), "bin");
         extend_versioned_bins(
             &mut paths,
@@ -697,12 +722,12 @@ fn find_windows_script(program: &str, path: Option<&OsStr>) -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(windows)]
-    use super::windows_launch_command;
     use super::{
         CliAgent, CliConfig, GRIDVANA_AGENT_INSTRUCTIONS, LaunchSpec, cli_search_paths,
         codex_launch_spec_with_home, load_from, mcp_agent_prompt, save_to,
     };
+    #[cfg(windows)]
+    use super::{run_cli_version_with_environment, windows_launch_command};
     #[test]
     fn cli_config_round_trips() {
         let root =
@@ -791,6 +816,8 @@ mod tests {
         assert!(paths.contains(&home.join(".local/bin")));
         assert!(paths.contains(&home.join("Library/pnpm")));
         assert!(paths.contains(&home.join(".volta/bin")));
+        #[cfg(windows)]
+        assert!(paths.contains(&home.join("AppData/Roaming/npm")));
         #[cfg(target_os = "macos")]
         assert!(paths.contains(&std::path::PathBuf::from("/opt/homebrew/bin")));
     }
@@ -823,6 +850,35 @@ mod tests {
         assert_eq!(args[0..2], ["/d", "/c"]);
         assert_eq!(std::path::Path::new(&args[2]), shim);
         assert_eq!(args[3], "--version");
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn cli_version_test_runs_windows_npm_command_shim() {
+        let root = std::env::temp_dir().join(format!(
+            "gridvana-windows-version-test-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            root.join("codex.cmd"),
+            "@echo off\r\necho codex-test 1.0\r\n",
+        )
+        .unwrap();
+        let environment = std::collections::HashMap::from([(
+            "PATH".to_string(),
+            root.to_string_lossy().into_owned(),
+        )]);
+
+        let output = run_cli_version_with_environment("codex", environment).unwrap();
+
+        assert!(output.status.success());
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout).trim(),
+            "codex-test 1.0"
+        );
 
         let _ = std::fs::remove_dir_all(root);
     }

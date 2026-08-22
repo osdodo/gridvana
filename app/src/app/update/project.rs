@@ -20,23 +20,8 @@ impl Gridvana {
                 self.app_menu_open = false;
                 Ok(Task::none())
             }
-            Message::OpenAbout => {
-                self.app_menu_open = false;
-                self.cli_settings_open = false;
-                self.new_project_dialog_open = false;
-                self.pending_sprite_sheet_export_path = None;
-                self.about_dialog_open = true;
-                self.global_left_button_down = false;
-                Ok(Task::none())
-            }
-            Message::CloseAbout => {
-                self.about_dialog_open = false;
-                self.global_left_button_down = false;
-                Ok(Task::none())
-            }
             Message::OpenNewProjectDialog => {
                 self.app_menu_open = false;
-                self.about_dialog_open = false;
                 self.pending_sprite_sheet_export_path = None;
                 self.new_project_dialog_open = true;
                 self.global_left_button_down = false;
