@@ -164,9 +164,10 @@ impl Gridvana {
                 Ok(Task::none())
             }
             Message::StartCliTerminal => Ok(self.start_cli_terminal()),
-            Message::TerminalHostWindow(Some(window_id)) => Ok(self
-                .terminal_webview
-                .create_task(window_id, Message::TerminalWebViewReady)),
+            Message::TerminalHostWindow(Some(window_id)) if self.terminal_session.is_some() => Ok(
+                self.terminal_webview
+                    .create_task(window_id, Message::TerminalWebViewReady),
+            ),
             Message::TerminalHostWindow(None) => {
                 self.cli_status = tr(
                     "Could not access the Gridvana window; the web terminal did not start",
@@ -287,6 +288,7 @@ impl Gridvana {
                     .evaluate_script(web_terminal::CLEAR_SCRIPT);
                 self.sync_terminal_webview_visibility();
                 self.focus_terminal();
+                return iced::window::oldest().map(Message::TerminalHostWindow);
             }
             Err(error) => {
                 self.cli_status = error;

@@ -19,17 +19,26 @@ pub fn main() -> iced::Result {
     #[cfg(windows)]
     windows_integration::initialize();
 
-    let mut window_settings = iced::window::Settings {
+    // iced_wry uses WebKitGTK on Linux. GTK must be initialized before the
+    // first WebView is created (which happens during application startup).
+    #[cfg(target_os = "linux")]
+    if let Err(error) = gtk::init() {
+        return Err(iced::Error::WindowCreationFailed(Box::new(error)));
+    }
+
+    let window_settings = iced::window::Settings {
         maximized: true,
         min_size: Some(iced::Size::new(640.0, 480.0)),
         icon: Some(branding::window_icon()),
         ..Default::default()
     };
     #[cfg(windows)]
-    {
+    let window_settings = {
+        let mut window_settings = window_settings;
         window_settings.decorations = false;
         window_settings.platform_specific.undecorated_shadow = true;
-    }
+        window_settings
+    };
 
     iced::application(
         app::Gridvana::new,

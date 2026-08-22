@@ -7,26 +7,25 @@ use iced::{Element, Length, widget};
 impl Gridvana {
     pub(super) fn editor_ai_agent_inspector(&self) -> Element<'_, Message> {
         let tabs = self.editor_inspector_tabs();
-        let terminal: Element<'_, Message> =
-            if self.terminal_session.is_some() && self.terminal_webview_ready {
-                iced_wry::webview(&self.terminal_webview).into()
-            } else {
-                widget::container(
-                    widget::column![
-                        widget::text(&self.cli_status)
-                            .size(12)
-                            .wrapping(iced::widget::text::Wrapping::WordOrGlyph),
-                        widget::button(widget::text(tr("Start terminal", "启动终端")).size(12))
-                            .padding([8, 12])
-                            .style(widget::button::primary)
-                            .on_press(Message::StartCliTerminal),
-                    ]
-                    .spacing(12)
-                    .align_x(iced::Alignment::Center),
-                )
-                .center(Length::Fill)
-                .into()
-            };
+        let terminal: Element<'_, Message> = if self.terminal_session.is_some() {
+            iced_wry::webview(&self.terminal_webview).into()
+        } else {
+            widget::container(
+                widget::column![
+                    widget::text(&self.cli_status)
+                        .size(12)
+                        .wrapping(iced::widget::text::Wrapping::WordOrGlyph),
+                    widget::button(widget::text(tr("Start terminal", "启动终端")).size(12))
+                        .padding([8, 12])
+                        .style(widget::button::primary)
+                        .on_press(Message::StartCliTerminal),
+                ]
+                .spacing(12)
+                .align_x(iced::Alignment::Center),
+            )
+            .center(Length::Fill)
+            .into()
+        };
 
         widget::opaque(
             widget::container(

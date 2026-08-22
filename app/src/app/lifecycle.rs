@@ -173,7 +173,7 @@ impl Gridvana {
                 resize_canvas_width: "0".to_string(),
                 resize_canvas_height: "0".to_string(),
             },
-            iced::window::oldest().map(Message::TerminalHostWindow),
+            Task::none(),
         )
     }
 

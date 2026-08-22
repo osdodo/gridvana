@@ -36,3 +36,6 @@ windows = {
         "Win32_UI_Shell",
     ]
 }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"

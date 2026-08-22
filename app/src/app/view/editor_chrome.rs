@@ -779,6 +779,11 @@ impl Gridvana {
         if !self.has_visible_canvas() {
             return widget::container(
                 widget::row![
+                    #[cfg(target_os = "linux")]
+                    widget::button(widget::text(tr("Settings", "设置")).size(10))
+                        .on_press(Message::OpenCliSettings)
+                        .padding(0)
+                        .style(widget::button::text),
                     widget::text(active_tool_name.to_string())
                         .size(10)
                         .color(TEXT_PRIMARY),
@@ -824,6 +829,11 @@ impl Gridvana {
             });
         widget::container(
             widget::row![
+                #[cfg(target_os = "linux")]
+                widget::button(widget::text(tr("Settings", "设置")).size(10))
+                    .on_press(Message::OpenCliSettings)
+                    .padding(0)
+                    .style(widget::button::text),
                 status_light,
                 widget::text(if mcp_connected {
                     tr("MCP available", "MCP 会话可用")

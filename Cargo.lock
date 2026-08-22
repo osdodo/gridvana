@@ -114,6 +114,7 @@ dependencies = [
  "dirs",
  "gridvana_core",
  "gridvana_mcp",
+ "gtk",
  "iced",
  "iced_wry",
  "muda",
