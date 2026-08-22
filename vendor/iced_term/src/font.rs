@@ -11,6 +11,7 @@ use iced_graphics::text::paragraph;
 pub struct TermFont {
     pub(crate) size: f32,
     pub(crate) font_type: Font,
+    pub(crate) cjk_font_type: Option<Font>,
     pub(crate) scale_factor: f32,
     pub(crate) measure: Size<f32>,
 }
@@ -20,6 +21,7 @@ impl TermFont {
         Self {
             size: settings.size,
             font_type: settings.font_type,
+            cjk_font_type: settings.cjk_font_type,
             scale_factor: settings.scale_factor,
             measure: font_measure(
                 settings.size,

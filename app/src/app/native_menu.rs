@@ -84,12 +84,7 @@ impl NativeMenuState {
                 true,
                 Some(Accelerator::new(Some(Modifiers::SUPER), Code::Comma)),
             );
-            let about = MenuItem::with_id(
-                "gridvana.about",
-                tr("About Gridvana", "关于 Gridvana"),
-                true,
-                None,
-            );
+            let about = MenuItem::with_id("gridvana.about", tr("About", "关于"), true, None);
             let undo = MenuItem::with_id(
                 "gridvana.edit.undo",
                 tr("Undo", "撤销"),
@@ -217,8 +212,7 @@ impl NativeMenuState {
             self.open_project_item.set_text(tr("Open…", "打开…"));
             self.save_project_item.set_text(tr("Save", "保存"));
             self.settings_item.set_text(tr("Settings…", "设置…"));
-            self.about_item
-                .set_text(tr("About Gridvana", "关于 Gridvana"));
+            self.about_item.set_text(tr("About", "关于"));
             self.undo_item.set_text(tr("Undo", "撤销"));
             self.redo_item.set_text(tr("Redo", "重做"));
         }

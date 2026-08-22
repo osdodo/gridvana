@@ -661,7 +661,14 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                         fg = bg;
                     }
                     // Resolve font style (bold/italic) from cell flags
-                    let mut font = self.term.font.font_type;
+                    let mut font = if is_cjk_character(indexed.cell.c) {
+                        self.term
+                            .font
+                            .cjk_font_type
+                            .unwrap_or(self.term.font.font_type)
+                    } else {
+                        self.term.font.font_type
+                    };
                     if indexed
                         .cell
                         .flags
@@ -942,6 +949,18 @@ fn glyph_center_x(cell_x: f32, cell_width: f32, is_wide: bool) -> f32 {
     cell_x + if is_wide { cell_width } else { cell_width * 0.5 }
 }
 
+fn is_cjk_character(character: char) -> bool {
+    matches!(
+        character as u32,
+        0x3000..=0x303F
+            | 0x3400..=0x4DBF
+            | 0x4E00..=0x9FFF
+            | 0xF900..=0xFAFF
+            | 0xFF00..=0xFFEF
+            | 0x20000..=0x2FA1F
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -950,6 +969,14 @@ mod tests {
     fn wide_glyph_is_centered_across_both_terminal_cells() {
         assert_eq!(glyph_center_x(10.0, 8.0, false), 14.0);
         assert_eq!(glyph_center_x(10.0, 8.0, true), 18.0);
+    }
+
+    #[test]
+    fn cjk_character_detection_only_selects_cjk_ideographs() {
+        assert!(is_cjk_character('中'));
+        assert!(is_cjk_character('\u{20000}'));
+        assert!(is_cjk_character('。'));
+        assert!(!is_cjk_character('A'));
     }
 
     mod input_method_tests {

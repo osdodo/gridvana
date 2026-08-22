@@ -316,6 +316,9 @@ impl Gridvana {
                         scale_factor: 1.25,
                         #[cfg(target_os = "windows")]
                         font_type: iced::Font::with_name("NSimSun"),
+                        // The generic macOS monospace face has no reliable CJK fallback in Iced.
+                        #[cfg(target_os = "macos")]
+                        cjk_font_type: Some(iced::Font::with_name("Hiragino Sans GB")),
                         ..Default::default()
                     },
                     theme: iced_term::settings::ThemeSettings::new(Box::new(palette)),
