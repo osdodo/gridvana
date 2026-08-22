@@ -9,7 +9,6 @@ mod i18n;
 mod icons;
 mod mcp;
 mod types;
-mod web_terminal;
 #[cfg(windows)]
 mod windows_integration;
 
@@ -18,13 +17,6 @@ pub use types::{Message, Tool};
 pub fn main() -> iced::Result {
     #[cfg(windows)]
     windows_integration::initialize();
-
-    // iced_wry uses WebKitGTK on Linux. GTK must be initialized before the
-    // first WebView is created (which happens during application startup).
-    #[cfg(target_os = "linux")]
-    if let Err(error) = gtk::init() {
-        return Err(iced::Error::WindowCreationFailed(Box::new(error)));
-    }
 
     let window_settings = iced::window::Settings {
         maximized: true,

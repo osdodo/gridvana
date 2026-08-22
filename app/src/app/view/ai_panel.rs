@@ -7,8 +7,10 @@ use iced::{Element, Length, widget};
 impl Gridvana {
     pub(super) fn editor_ai_agent_inspector(&self) -> Element<'_, Message> {
         let tabs = self.editor_inspector_tabs();
-        let terminal: Element<'_, Message> = if self.terminal_session.is_some() {
-            iced_wry::webview(&self.terminal_webview).into()
+        let terminal: Element<'_, Message> = if let Some(terminal) = self.terminal.as_ref() {
+            iced_term::TerminalView::show(terminal)
+                .map(Message::IcedTerminal)
+                .into()
         } else {
             widget::container(
                 widget::column![

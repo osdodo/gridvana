@@ -1147,7 +1147,6 @@ impl Gridvana {
         self.project_path = project_path;
         self.normalize_project_state();
         self.is_saved = is_saved;
-        self.sync_terminal_webview_visibility();
     }
 }
 

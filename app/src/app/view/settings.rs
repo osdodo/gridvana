@@ -432,9 +432,15 @@ impl Gridvana {
         ]
         .align_y(iced::Alignment::Center);
         let session = self
-            .terminal_session
+            .terminal
             .as_ref()
-            .map(|session| format!("{} {}", session.agent, tr("session running", "会话运行中")))
+            .map(|_| {
+                format!(
+                    "{} {}",
+                    self.cli_config.agent,
+                    tr("session running", "会话运行中")
+                )
+            })
             .unwrap_or_else(|| tr("No running session", "无运行中的会话").to_string());
 
         let rows = vec![

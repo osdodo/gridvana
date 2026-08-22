@@ -1,9 +1,8 @@
 use super::super::Gridvana;
 use super::super::McpCopyFeedback;
-use crate::cli_terminal::{TerminalSession, cli_environment, mcp_agent_prompt};
+use crate::cli_terminal::{cli_environment, iced_terminal_settings, mcp_agent_prompt};
 use crate::i18n::{set_current_language, tr};
 use crate::types::{InspectorPanel, Message};
-use crate::web_terminal::{self, WebTerminalEvent};
 use iced::Task;
 
 impl Gridvana {
@@ -18,11 +17,9 @@ impl Gridvana {
                 }
                 self.inspector_panel = InspectorPanel::AiAgent;
                 self.pending_sprite_sheet_export_path = None;
-                if self.terminal_session.is_none() {
+                if self.terminal.is_none() {
                     return Ok(self.start_cli_terminal());
                 }
-                self.sync_terminal_webview_visibility();
-                self.focus_terminal();
                 Ok(Task::none())
             }
             Message::OpenCliSettings => {
@@ -33,13 +30,10 @@ impl Gridvana {
                 self.mcp_copy_feedback = None;
                 self.cli_save_error = None;
                 self.cli_settings_open = true;
-                self.sync_terminal_webview_visibility();
                 Ok(Task::none())
             }
             Message::CloseCliSettings => {
                 self.cli_settings_open = false;
-                self.sync_terminal_webview_visibility();
-                self.focus_terminal();
                 Ok(Task::none())
             }
             Message::SelectCliAgent(agent) => {
@@ -72,7 +66,7 @@ impl Gridvana {
                         )
                     },
                 );
-                self.cli_status = self.terminal_session.as_ref().map_or_else(
+                self.cli_status = self.terminal.as_ref().map_or_else(
                     || {
                         format!(
                             "{} · {}",
@@ -80,10 +74,10 @@ impl Gridvana {
                             self.cli_config.agent
                         )
                     },
-                    |session| {
+                    |_terminal| {
                         format!(
                             "{} {}",
-                            session.agent,
+                            self.cli_config.agent,
                             tr("terminal connected", "终端已连接")
                         )
                     },
@@ -164,37 +158,16 @@ impl Gridvana {
                 Ok(Task::none())
             }
             Message::StartCliTerminal => Ok(self.start_cli_terminal()),
-            Message::TerminalHostWindow(Some(window_id)) if self.terminal_session.is_some() => Ok(
-                self.terminal_webview
-                    .create_task(window_id, Message::TerminalWebViewReady),
-            ),
-            Message::TerminalHostWindow(None) => {
-                self.cli_status = tr(
-                    "Could not access the Gridvana window; the web terminal did not start",
-                    "无法获取 Gridvana 窗口，Web 终端未启动",
-                )
-                .to_string();
-                Ok(Task::none())
-            }
-            Message::TerminalWebViewReady(Ok(())) => {
-                self.terminal_webview.take_staged();
-                self.terminal_webview_ready = true;
-                self.sync_terminal_webview_visibility();
-                Ok(Task::none())
-            }
-            Message::TerminalWebViewReady(Err(error)) => {
-                self.cli_status = format!(
-                    "{}: {error}",
-                    tr("Web terminal failed to start", "Web 终端启动失败")
-                );
-                Ok(Task::none())
-            }
-            Message::TerminalWebViewIpc(message) => {
-                self.handle_terminal_ipc(&message.body);
-                Ok(Task::none())
-            }
-            Message::PollCliTerminal => {
-                self.poll_cli_terminal();
+            Message::IcedTerminal(iced_term::Event::BackendCall(_, command)) => {
+                let Some(terminal) = self.terminal.as_mut() else {
+                    return Ok(Task::none());
+                };
+                if matches!(
+                    terminal.handle(iced_term::Command::ProxyToBackend(command)),
+                    iced_term::actions::Action::Shutdown
+                ) {
+                    self.finish_terminal();
+                }
                 Ok(Task::none())
             }
             other => Err(other),
@@ -253,9 +226,7 @@ impl Gridvana {
     }
 
     fn start_cli_terminal(&mut self) -> Task<Message> {
-        if self.terminal_session.is_some() {
-            self.sync_terminal_webview_visibility();
-            self.focus_terminal();
+        if self.terminal.is_some() {
             return Task::none();
         }
         let Some(endpoint) = self
@@ -271,134 +242,62 @@ impl Gridvana {
             return Task::none();
         };
         let working_directory = std::env::current_dir().unwrap_or_else(|_| ".".into());
-        match TerminalSession::start(&self.cli_config, &endpoint, working_directory) {
-            Ok(session) => {
-                self.cli_status = format!(
-                    "{} {}",
-                    session.agent,
-                    tr("terminal connected", "终端已连接")
-                );
-                if let Some((cols, rows)) = self.terminal_size
-                    && let Err(error) = session.resize(cols, rows)
-                {
-                    self.cli_status = error;
+        match iced_terminal_settings(&self.cli_config, &endpoint, working_directory) {
+            Ok(launch) => {
+                let mut palette = iced_term::ColorPalette::default();
+                palette.background = "#101318".to_string();
+                palette.black = "#101318".to_string();
+                palette.foreground = "#ebedf2".to_string();
+                palette.white = "#c4c7d2".to_string();
+                palette.bright_white = "#ffffff".to_string();
+                let settings = iced_term::settings::Settings {
+                    backend: launch.backend,
+                    font: iced_term::settings::FontSettings {
+                        size: 12.0,
+                        scale_factor: 1.25,
+                        ..Default::default()
+                    },
+                    theme: iced_term::settings::ThemeSettings::new(Box::new(palette)),
+                    ..Default::default()
+                };
+                match iced_term::Terminal::new(launch.id, settings) {
+                    Ok(terminal) => {
+                        self.cli_status = format!(
+                            "{} {}",
+                            launch.agent,
+                            tr("terminal connected", "终端已连接")
+                        );
+                        self.terminal = Some(terminal);
+                        self.terminal_temp_files = launch.temporary_files;
+                    }
+                    Err(error) => {
+                        for path in launch.temporary_files {
+                            let _ = std::fs::remove_file(path);
+                        }
+                        self.cli_status = format!(
+                            "{}: {error}",
+                            tr("Could not create terminal", "无法创建终端")
+                        );
+                    }
                 }
-                self.terminal_session = Some(session);
-                self.terminal_webview
-                    .evaluate_script(web_terminal::CLEAR_SCRIPT);
-                self.sync_terminal_webview_visibility();
-                self.focus_terminal();
-                return iced::window::oldest().map(Message::TerminalHostWindow);
             }
             Err(error) => {
                 self.cli_status = error;
-                self.sync_terminal_webview_visibility();
             }
         }
         Task::none()
     }
 
-    fn handle_terminal_ipc(&mut self, body: &str) {
-        let event = match web_terminal::parse_ipc(body) {
-            Ok(event) => event,
-            Err(error) => {
-                self.cli_status = error;
-                return;
-            }
-        };
-        match event {
-            WebTerminalEvent::Ready { cols, rows } => {
-                self.terminal_page_ready = true;
-                self.terminal_size = Some((cols, rows));
-                if let Some(session) = self.terminal_session.as_ref()
-                    && let Err(error) = session.resize(cols, rows)
-                {
-                    self.cli_status = error;
-                }
-                self.terminal_webview
-                    .evaluate_script(web_terminal::CLEAR_SCRIPT);
-                self.flush_terminal_output();
-                self.focus_terminal();
-            }
-            WebTerminalEvent::Input { data } => {
-                if let Some(session) = self.terminal_session.as_mut()
-                    && let Err(error) = session.write(data.as_bytes())
-                {
-                    self.cli_status = error;
-                }
-            }
-            WebTerminalEvent::Resize { cols, rows } => {
-                self.terminal_size = Some((cols, rows));
-                if let Some(session) = self.terminal_session.as_ref()
-                    && let Err(error) = session.resize(cols, rows)
-                {
-                    self.cli_status = error;
-                }
-            }
+    fn finish_terminal(&mut self) {
+        self.terminal = None;
+        for path in self.terminal_temp_files.drain(..) {
+            let _ = std::fs::remove_file(path);
         }
-    }
-
-    fn poll_cli_terminal(&mut self) {
-        if self.terminal_page_ready {
-            self.flush_terminal_output();
-        }
-        let exit = self
-            .terminal_session
-            .as_mut()
-            .and_then(|session| match session.try_wait() {
-                Ok(status) => status.map(|status| (session.agent, status)),
-                Err(error) => {
-                    self.cli_status = error;
-                    None
-                }
-            });
-        if let Some((agent, status)) = exit {
-            self.flush_terminal_output();
-            self.terminal_session = None;
-            self.terminal_webview.set_visible(false);
-            self.reset_agent_edit_session();
-            if self.inspector_panel == InspectorPanel::AiAgent && !self.ai_agent_panel_available() {
-                self.inspector_panel = InspectorPanel::Layers;
-            }
-            self.cli_status = format!("{agent} {} · {status}", tr("terminal exited", "终端已退出"));
-        }
-    }
-
-    fn flush_terminal_output(&self) {
-        let Some(session) = self.terminal_session.as_ref() else {
-            return;
-        };
-        let chunks = session.drain_output();
-        if chunks.is_empty() {
-            return;
-        }
-        let mut output = Vec::with_capacity(chunks.iter().map(Vec::len).sum());
-        for chunk in chunks {
-            output.extend_from_slice(&chunk);
-        }
-        self.terminal_webview
-            .evaluate_script(&web_terminal::output_script(&output));
-    }
-
-    fn focus_terminal(&self) {
-        if self.terminal_webview_ready
-            && self.inspector_panel == InspectorPanel::AiAgent
-            && !self.cli_settings_open
-            && self.terminal_session.is_some()
-        {
-            self.terminal_webview
-                .evaluate_script(web_terminal::FOCUS_SCRIPT);
-        }
-    }
-
-    pub(in crate::app) fn sync_terminal_webview_visibility(&self) {
-        self.terminal_webview.set_visible(
-            self.terminal_webview_ready
-                && self.inspector_panel == InspectorPanel::AiAgent
-                && !self.cli_settings_open
-                && !self.new_project_dialog_open
-                && !self.about_dialog_open
-                && self.terminal_session.is_some(),
+        self.reset_agent_edit_session();
+        self.cli_status = format!(
+            "{} · {}",
+            self.cli_config.agent,
+            tr("terminal exited", "终端已退出")
         );
     }
 
@@ -413,9 +312,8 @@ impl Gridvana {
                     && !self.ai_agent_panel_available()
                 {
                     self.inspector_panel = InspectorPanel::Layers;
-                    self.sync_terminal_webview_visibility();
                 }
-                self.cli_status = if self.terminal_session.is_some() {
+                self.cli_status = if self.terminal.is_some() {
                     tr(
                         "CLI configuration saved; exit the terminal and restart it to apply the changes",
                         "CLI 配置已保存；请在终端内退出，重新启动后生效",

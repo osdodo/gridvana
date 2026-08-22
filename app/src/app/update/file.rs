@@ -233,7 +233,6 @@ impl Gridvana {
             Message::ExportSpriteSheet => {
                 self.app_menu_open = false;
                 self.inspector_panel = InspectorPanel::Export;
-                self.sync_terminal_webview_visibility();
                 if !self.has_canvas {
                     return Ok(Task::none());
                 }

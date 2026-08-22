@@ -27,13 +27,11 @@ impl Gridvana {
                 self.pending_sprite_sheet_export_path = None;
                 self.about_dialog_open = true;
                 self.global_left_button_down = false;
-                self.sync_terminal_webview_visibility();
                 Ok(Task::none())
             }
             Message::CloseAbout => {
                 self.about_dialog_open = false;
                 self.global_left_button_down = false;
-                self.sync_terminal_webview_visibility();
                 Ok(Task::none())
             }
             Message::OpenNewProjectDialog => {
@@ -42,13 +40,11 @@ impl Gridvana {
                 self.pending_sprite_sheet_export_path = None;
                 self.new_project_dialog_open = true;
                 self.global_left_button_down = false;
-                self.sync_terminal_webview_visibility();
                 Ok(Task::none())
             }
             Message::CloseNewProjectDialog => {
                 self.new_project_dialog_open = false;
                 self.global_left_button_down = false;
-                self.sync_terminal_webview_visibility();
                 Ok(Task::none())
             }
             Message::UpdateCanvasWidth(value) => {
@@ -82,7 +78,6 @@ impl Gridvana {
                 self.project_path = None;
                 self.normalize_project_state();
                 self.is_saved = false;
-                self.sync_terminal_webview_visibility();
                 Ok(Task::none())
             }
             Message::Undo => {

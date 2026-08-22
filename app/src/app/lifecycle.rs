@@ -19,11 +19,6 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 const AUTOSAVE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
-// Batch PTY output so xterm does not render partial frames from a single TUI redraw.
-#[cfg(target_os = "windows")]
-const TERMINAL_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(50);
-#[cfg(not(target_os = "windows"))]
-const TERMINAL_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(16);
 
 fn recovery_file_path() -> PathBuf {
     dirs::data_local_dir()
@@ -65,8 +60,6 @@ impl Gridvana {
             Err(error) => (CliConfig::default(), error),
         };
         let cli_config_draft = cli_config.clone();
-        let terminal_webview =
-            iced_wry::WebViewController::new(crate::web_terminal::webview_config());
         let recovery_file_path = recovery_file_path();
         let pending_recovery = match recovery_file_path.try_exists() {
             Ok(true) => Some(
@@ -89,11 +82,8 @@ impl Gridvana {
                 ai_preview_project: None,
                 mcp_service,
                 mcp_status,
-                terminal_session: None,
-                terminal_webview,
-                terminal_webview_ready: false,
-                terminal_page_ready: false,
-                terminal_size: None,
+                terminal: None,
+                terminal_temp_files: Vec::new(),
                 cli_settings_open: false,
                 settings_section: crate::types::SettingsSection::General,
                 preferences,
@@ -370,15 +360,8 @@ impl Gridvana {
             );
         }
 
-        subscriptions.push(
-            self.terminal_webview
-                .ipc_subscription()
-                .map(Message::TerminalWebViewIpc),
-        );
-
-        if self.terminal_session.is_some() {
-            subscriptions
-                .push(iced::time::every(TERMINAL_POLL_INTERVAL).map(|_| Message::PollCliTerminal));
+        if let Some(terminal) = self.terminal.as_ref() {
+            subscriptions.push(terminal.subscription().map(Message::IcedTerminal));
         }
 
         #[cfg(target_os = "macos")]

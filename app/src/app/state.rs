@@ -1,6 +1,6 @@
 use super::native_menu::NativeMenuState;
 use crate::canvas::OnionSkinSettings;
-use crate::cli_terminal::{CliConfig, TerminalSession};
+use crate::cli_terminal::CliConfig;
 use crate::i18n::{AppPreferences, Language};
 use crate::types::{
     ColorSlot, InspectorPanel, SelectionCombineMode, SettingsSection, SpriteEmptyChoice,
@@ -196,11 +196,8 @@ pub struct Gridvana {
     pub(super) ai_preview_project: Option<Project>,
     pub(super) mcp_service: Option<crate::mcp::EmbeddedMcpService>,
     pub(super) mcp_status: String,
-    pub(super) terminal_session: Option<TerminalSession>,
-    pub(super) terminal_webview: iced_wry::WebViewController,
-    pub(super) terminal_webview_ready: bool,
-    pub(super) terminal_page_ready: bool,
-    pub(super) terminal_size: Option<(u16, u16)>,
+    pub(super) terminal: Option<iced_term::Terminal>,
+    pub(super) terminal_temp_files: Vec<std::path::PathBuf>,
     pub(super) cli_settings_open: bool,
     pub(super) settings_section: SettingsSection,
     pub(super) preferences: AppPreferences,
@@ -300,5 +297,14 @@ impl Gridvana {
                 .ai_preview_project
                 .as_ref()
                 .is_some_and(|project| project.canvas_width > 0 && project.canvas_height > 0)
+    }
+}
+
+impl Drop for Gridvana {
+    fn drop(&mut self) {
+        self.terminal.take();
+        for path in self.terminal_temp_files.drain(..) {
+            let _ = std::fs::remove_file(path);
+        }
     }
 }

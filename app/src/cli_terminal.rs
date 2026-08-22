@@ -1,15 +1,11 @@
 use crate::i18n::{Language, current_language, tr};
-use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{BTreeSet, HashMap};
 use std::ffi::OsStr;
 use std::fs;
-use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc::{self, Receiver};
-use std::thread::JoinHandle;
 
 static NEXT_TERMINAL_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -598,138 +594,34 @@ fn claude_launch_spec(
     })
 }
 
-pub struct TerminalSession {
-    pub agent: CliAgent,
-    master: Box<dyn MasterPty + Send>,
-    writer: Box<dyn Write + Send>,
-    child: Box<dyn Child + Send + Sync>,
-    output: Receiver<Vec<u8>>,
-    reader_thread: Option<JoinHandle<()>>,
-    temporary_files: Vec<PathBuf>,
+/// Builds the command/environment used by the native Iced terminal widget.
+/// The widget owns the PTY, while this module remains responsible for the
+/// agent-specific MCP and permission configuration.
+pub(crate) struct IcedTerminalLaunch {
+    pub(crate) id: u64,
+    pub(crate) agent: CliAgent,
+    pub(crate) backend: iced_term::settings::BackendSettings,
+    pub(crate) temporary_files: Vec<PathBuf>,
 }
 
-impl TerminalSession {
-    pub fn start(
-        config: &CliConfig,
-        mcp_endpoint: &str,
-        working_directory: PathBuf,
-    ) -> Result<Self, String> {
-        let spec = LaunchSpec::for_config(config, mcp_endpoint, working_directory)?;
-        let result = Self::start_pty(config.agent, &spec);
-        if result.is_err() {
-            for path in &spec.temporary_files {
-                let _ = fs::remove_file(path);
-            }
-        }
-        result.map(|mut session| {
-            session.temporary_files = spec.temporary_files;
-            session
-        })
-    }
-
-    fn start_pty(agent: CliAgent, spec: &LaunchSpec) -> Result<Self, String> {
-        let pair = native_pty_system()
-            .openpty(PtySize {
-                rows: 40,
-                cols: 100,
-                pixel_width: 0,
-                pixel_height: 0,
-            })
-            .map_err(|error| {
-                format!(
-                    "{}: {error}",
-                    tr("Could not create terminal", "无法创建终端")
-                )
-            })?;
-
-        let (program, args) = windows_launch_command(spec);
-        let mut command = CommandBuilder::new(&program);
-        command.args(&args);
-        command.cwd(&spec.working_directory);
-        for (key, value) in &spec.env {
-            command.env(key, value);
-        }
-
-        let child = pair
-            .slave
-            .spawn_command(command)
-            .map_err(|error| format!("{} {agent}: {error}", tr("Could not start", "无法启动")))?;
-        drop(pair.slave);
-        let mut reader = pair.master.try_clone_reader().map_err(|error| {
-            format!(
-                "{} {agent}: {error}",
-                tr("Could not read terminal for", "无法读取终端")
-            )
-        })?;
-        let writer = pair.master.take_writer().map_err(|error| {
-            format!(
-                "{} {agent}: {error}",
-                tr("Could not write to terminal for", "无法写入终端")
-            )
-        })?;
-        let (sender, output) = mpsc::channel();
-        let reader_thread = std::thread::spawn(move || {
-            let mut buffer = vec![0_u8; 16 * 1024];
-            loop {
-                match reader.read(&mut buffer) {
-                    Ok(0) => break,
-                    Ok(length) => {
-                        if sender.send(buffer[..length].to_vec()).is_err() {
-                            break;
-                        }
-                    }
-                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
-                    Err(_) => break,
-                }
-            }
-        });
-
-        Ok(Self {
-            agent,
-            master: pair.master,
-            writer,
-            child,
-            output,
-            reader_thread: Some(reader_thread),
-            temporary_files: Vec::new(),
-        })
-    }
-
-    pub fn write(&mut self, input: &[u8]) -> Result<(), String> {
-        self.writer
-            .write_all(input)
-            .and_then(|()| self.writer.flush())
-            .map_err(|error| format!("{}: {error}", tr("Terminal input failed", "终端输入失败")))
-    }
-
-    pub fn resize(&self, cols: u16, rows: u16) -> Result<(), String> {
-        self.master
-            .resize(PtySize {
-                rows: rows.max(2),
-                cols: cols.max(2),
-                pixel_width: 0,
-                pixel_height: 0,
-            })
-            .map_err(|error| {
-                format!(
-                    "{}: {error}",
-                    tr("Could not resize terminal", "终端尺寸更新失败")
-                )
-            })
-    }
-
-    pub fn drain_output(&self) -> Vec<Vec<u8>> {
-        self.output.try_iter().collect()
-    }
-
-    pub fn try_wait(&mut self) -> Result<Option<portable_pty::ExitStatus>, String> {
-        self.child.try_wait().map_err(|error| {
-            format!(
-                "{}: {error}",
-                tr("Could not read terminal status", "无法读取终端状态")
-            )
-        })
-    }
+pub(crate) fn iced_terminal_settings(
+    config: &CliConfig,
+    mcp_endpoint: &str,
+    working_directory: PathBuf,
+) -> Result<IcedTerminalLaunch, String> {
+    let spec = LaunchSpec::for_config(config, mcp_endpoint, working_directory)?;
+    let (program, args) = windows_launch_command(&spec);
+    Ok(IcedTerminalLaunch {
+        id: NEXT_TERMINAL_ID.fetch_add(1, Ordering::Relaxed),
+        agent: config.agent,
+        backend: iced_term::settings::BackendSettings {
+            program,
+            args,
+            env: spec.env,
+            working_directory: Some(spec.working_directory),
+        },
+        temporary_files: spec.temporary_files,
+    })
 }
 
 #[cfg(not(windows))]
@@ -801,23 +693,13 @@ fn find_windows_script(program: &str, path: Option<&OsStr>) -> Option<PathBuf> {
     })
 }
 
-impl Drop for TerminalSession {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        self.reader_thread.take();
-        for path in &self.temporary_files {
-            let _ = fs::remove_file(path);
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     #[cfg(windows)]
     use super::windows_launch_command;
     use super::{
-        CliAgent, CliConfig, GRIDVANA_AGENT_INSTRUCTIONS, LaunchSpec, TerminalSession,
-        cli_search_paths, codex_launch_spec_with_home, load_from, mcp_agent_prompt, save_to,
+        CliAgent, CliConfig, GRIDVANA_AGENT_INSTRUCTIONS, LaunchSpec, cli_search_paths,
+        codex_launch_spec_with_home, load_from, mcp_agent_prompt, save_to,
     };
     #[test]
     fn cli_config_round_trips() {
@@ -940,54 +822,6 @@ mod tests {
         assert_eq!(std::path::Path::new(&args[2]), shim);
         assert_eq!(args[3], "--version");
 
-        let _ = std::fs::remove_dir_all(root);
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn windows_pty_executes_cmd_shim() {
-        let root =
-            std::env::temp_dir().join(format!("gridvana-windows-pty-test-{}", std::process::id()));
-        std::fs::create_dir_all(&root).unwrap();
-        std::fs::write(root.join("codex"), "#!/bin/sh\n").unwrap();
-        std::fs::write(
-            root.join("codex.cmd"),
-            "@echo off\r\necho gridvana-wrapper-ok %1\r\n",
-        )
-        .unwrap();
-        let mut environment = super::cli_environment();
-        environment.insert("PATH".to_string(), root.to_string_lossy().into_owned());
-        let spec = LaunchSpec {
-            program: "codex".to_string(),
-            args: vec!["--version".to_string()],
-            env: environment,
-            working_directory: root.clone(),
-            temporary_files: Vec::new(),
-        };
-        let mut session = TerminalSession::start_pty(CliAgent::Codex, &spec).unwrap();
-        let mut output = Vec::new();
-        let mut answered_cursor_query = false;
-        for _ in 0..100 {
-            output.extend(session.drain_output().into_iter().flatten());
-            if !answered_cursor_query && output.windows(4).any(|bytes| bytes == b"\x1b[6n") {
-                session.write(b"\x1b[1;1R").unwrap();
-                answered_cursor_query = true;
-            }
-            if session.try_wait().unwrap().is_some() {
-                std::thread::sleep(std::time::Duration::from_millis(20));
-                output.extend(session.drain_output().into_iter().flatten());
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-
-        let output = String::from_utf8_lossy(&output);
-        assert!(
-            output.contains("gridvana-wrapper-ok --version"),
-            "unexpected terminal output: {output:?}"
-        );
-
-        drop(session);
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -1175,30 +1009,5 @@ command = "false"
         for path in spec.temporary_files {
             let _ = std::fs::remove_file(path);
         }
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn pty_preserves_utf8_output() {
-        let spec = LaunchSpec {
-            program: "/bin/sh".to_string(),
-            args: vec!["-c".to_string(), "printf '中文'".to_string()],
-            env: super::cli_environment(),
-            working_directory: std::env::temp_dir(),
-            temporary_files: Vec::new(),
-        };
-        let mut session = TerminalSession::start_pty(CliAgent::Codex, &spec).unwrap();
-        let mut output = Vec::new();
-        for _ in 0..100 {
-            output.extend(session.drain_output().into_iter().flatten());
-            if session.try_wait().unwrap().is_some() {
-                std::thread::sleep(std::time::Duration::from_millis(20));
-                output.extend(session.drain_output().into_iter().flatten());
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-
-        assert!(String::from_utf8_lossy(&output).contains("中文"));
     }
 }

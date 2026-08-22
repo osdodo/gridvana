@@ -28,7 +28,6 @@ impl Gridvana {
                 } else {
                     self.pending_sprite_sheet_export_path = None;
                 }
-                self.sync_terminal_webview_visibility();
                 Ok(Task::none())
             }
             Message::BeginInspectorResize => {
@@ -181,7 +180,6 @@ impl Gridvana {
                 }
                 if self.about_dialog_open {
                     self.about_dialog_open = false;
-                    self.sync_terminal_webview_visibility();
                     return Ok(Task::none());
                 }
                 if self.timeline_selection.is_empty() {
