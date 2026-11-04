@@ -7,7 +7,7 @@ Gridvana is a collaborative pixel art and animation editor written in Rust.
 Humans and AI agents share the same square pixel grid, creating and revising
 frame-by-frame artwork together through MCP.
 
-![Gridvana](screenshots/1.jpg)
+![Gridvana](screenshots/demo-web.gif)
 
 ## Features
 
