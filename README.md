@@ -22,6 +22,17 @@ frame-by-frame artwork together through MCP.
   let AI agents edit the same project as you: they can start an edit session,
   preview operations, and commit changes into the shared undo history.
 
+## Install
+
+macOS (Homebrew):
+
+```bash
+brew install --cask osdodo/gridvana/gridvana
+```
+
+Or download the archive for your platform from
+[Releases](https://github.com/osdodo/gridvana/releases).
+
 ## Building
 
 ```bash
@@ -32,8 +43,9 @@ cargo run --package app
 
 ## Opening Gridvana on macOS
 
-macOS may report that Apple cannot verify Gridvana for malicious software. If
-you downloaded Gridvana from a source you trust:
+The Homebrew cask removes the quarantine attribute for you. If you downloaded
+the zip instead, macOS may report that Apple cannot verify Gridvana for
+malicious software. If you downloaded Gridvana from a source you trust:
 
 1. Find `Gridvana.app` in Finder.
 2. Control-click the app and choose **Open**.
